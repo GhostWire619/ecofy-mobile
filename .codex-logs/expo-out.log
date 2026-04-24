@@ -1,0 +1,9 @@
+
+> ecofy-mobile-app@1.0.0 start:tunnel
+> expo start --dev-client --tunnel
+
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL EXPO_PUBLIC_EAS_PROJECT_ID EXPO_PUBLIC_ENVIRONMENT EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN EXPO_PUBLIC_MAPBOX_STYLE_URL
+Starting project at D:\Projects\3d_projects\Ecofy\Ecofy Mobile App
+› Port 8081 is being used by another process
+› Skipping dev server

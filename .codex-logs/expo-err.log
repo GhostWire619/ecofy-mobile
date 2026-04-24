@@ -1,0 +1,10 @@
+Set-Location : A positional parameter cannot be found that accepts argument 'Mobile'.
+At line:1 char:1
++ cd D:\Projects\3d_projects\Ecofy\Ecofy Mobile App; npm run start:tunn ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (:) [Set-Location], ParameterBindingException
+    + FullyQualifiedErrorId : PositionalParameterNotFound,Microsoft.PowerShell.Commands.SetLocationCommand
+ 
+Input is required, but 'npx expo' is in non-interactive mode.
+Required input:
+> Use port 8082 instead?

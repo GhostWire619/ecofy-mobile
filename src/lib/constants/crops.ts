@@ -1,0 +1,73 @@
+import type { CropCatalogItem } from '@/lib/domain/types';
+
+export const cropCatalog: CropCatalogItem[] = [
+  {
+    id: 'maize-h513',
+    name: 'maize',
+    common_name: 'Maize',
+    local_name: 'Mahindi',
+    variety: 'H513',
+    maturity_days_max: 120,
+    difficulty: 'beginner',
+    water_needs: 'medium',
+    market_demand: 'high',
+    suitability_score: 92,
+    expected_yield_label: '2.5-4.0 tons/hectare',
+  },
+  {
+    id: 'beans-rosecoco',
+    name: 'beans',
+    common_name: 'Beans',
+    local_name: 'Maharage',
+    variety: 'Rosecoco',
+    maturity_days_max: 95,
+    difficulty: 'beginner',
+    water_needs: 'medium',
+    market_demand: 'high',
+    suitability_score: 88,
+    expected_yield_label: '1.0-1.8 tons/hectare',
+  },
+  {
+    id: 'tomato-riogrande',
+    name: 'tomato',
+    common_name: 'Tomato',
+    local_name: 'Nyanya',
+    variety: 'Rio Grande',
+    maturity_days_max: 110,
+    difficulty: 'intermediate',
+    water_needs: 'high',
+    market_demand: 'high',
+    suitability_score: 84,
+    expected_yield_label: '20-35 tons/hectare',
+  },
+  {
+    id: 'rice-nerica4',
+    name: 'rice',
+    common_name: 'Rice',
+    local_name: 'Mchele',
+    variety: 'NERICA 4',
+    maturity_days_max: 125,
+    difficulty: 'intermediate',
+    water_needs: 'high',
+    market_demand: 'high',
+    suitability_score: 80,
+    expected_yield_label: '3.5-5.5 tons/hectare',
+  },
+  {
+    id: 'sunflower-record',
+    name: 'sunflower',
+    common_name: 'Sunflower',
+    local_name: 'Alizeti',
+    variety: 'Record',
+    maturity_days_max: 105,
+    difficulty: 'beginner',
+    water_needs: 'low',
+    market_demand: 'medium',
+    suitability_score: 78,
+    expected_yield_label: '1.2-2.0 tons/hectare',
+  },
+];
+
+export function getCropCatalogItem(cropId: string) {
+  return cropCatalog.find((crop) => crop.id === cropId) ?? cropCatalog[0];
+}

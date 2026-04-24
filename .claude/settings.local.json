@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(.\\\\android\\\\gradlew.bat app:assembleDebug)",
+      "Bash(./gradlew app:assembleDebug)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('reanimated:', p.dependencies['react-native-reanimated']\\); console.log\\('worklets:', p.dependencies['react-native-worklets']\\);\")",
+      "Bash(npm info *)",
+      "Bash(node -e \"const v=JSON.parse\\(require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\)\\); console.log\\(v.filter\\(x=>x.startsWith\\('0.7'\\)\\).join\\('\\\\n'\\)\\);\")",
+      "Bash(npm install *)",
+      "Bash(./gradlew app:assembleDebug --stacktrace)",
+      "Read(//c/Users/lugat/AppData/Local/Android/Sdk/ndk/**)",
+      "Read(//d/Android/Sdk/**)",
+      "Bash(xargs grep *)",
+      "Bash(node -e ' *)",
+      "Bash(./gradlew :react-native-reanimated:buildCMakeDebug)",
+      "Bash(./gradlew clean *)",
+      "Bash(tee /tmp/gradle_build.log)",
+      "Bash(xargs ls *)",
+      "Bash(awk '/if.*isEditingFarmProfile/,/}.*{/' app/page.tsx)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); const deps={...p.dependencies,...p.devDependencies}; const keys=Object.keys\\(deps\\).filter\\(k=>k.includes\\('reanimated'\\)||k.includes\\('gesture'\\)||k.includes\\('bottom-sheet'\\)||k.includes\\('gorhom'\\)\\); console.log\\(JSON.stringify\\(keys,null,2\\)\\)\")",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(Object.keys\\(p.dependencies\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"require\\('@expo/vector-icons'\\); console.log\\('available'\\)\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__switch_browser",
+      "WebFetch(domain:ecofy.co.tz)",
+      "WebSearch",
+      "WebFetch(domain:www.ecofy.co.tz)",
+      "Bash(node -e \"require\\('expo-linear-gradient'\\); console.log\\('ok'\\)\")",
+      "Bash(node -e \"require\\('react-native-svg'\\); console.log\\('svg ok'\\)\")",
+      "Bash(node -e \"require\\('victory-native'\\); console.log\\('victory ok'\\)\")",
+      "Bash(dir \"D:\\\\Projects\\\\3d_projects\\\\Ecofy\\\\Ecofy Mobile App\\\\src\\\\lib\" /b)",
+      "Bash(npx expo *)",
+      "Bash(dir \"D:\\\\Projects\\\\3d_projects\\\\Ecofy\\\\Ecofy Mobile App\\\\src\\\\lib\\\\db\\\\repositories\" /b)"
+    ]
+  }
+}

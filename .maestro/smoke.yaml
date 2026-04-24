@@ -1,0 +1,30 @@
+appId: com.ecofy.mobile
+env:
+  MAESTRO_FULL_NAME: Ecofy QA
+  MAESTRO_EMAIL: qa+mobile@ecofy.app
+  MAESTRO_PASSWORD: Password123!
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Field-ready farming support"
+- tapOn: "Create account"
+- assertVisible: "Create your Ecofy account"
+- tapOn: "Full name"
+- inputText: ${MAESTRO_FULL_NAME}
+- tapOn: "Email"
+- inputText: ${MAESTRO_EMAIL}
+- tapOn: "Password"
+- inputText: ${MAESTRO_PASSWORD}
+- tapOn: "Phone number"
+- inputText: "+254700000000"
+- tapOn: "Create account"
+- assertVisible: "Farm profile and first crop"
+- tapOn: "Create offline workspace"
+- assertVisible: "Today in the field"
+- tapOn: "Logbook"
+- assertVisible: "Fast field logging"
+- tapOn: "Notes"
+- inputText: "Offline log created by Maestro"
+- tapOn: "Save offline log"
+- assertVisible: "Recent logs"
+- assertVisible: "Offline log created by Maestro"
