@@ -33,7 +33,8 @@
       "Bash(node -e \"require\\('victory-native'\\); console.log\\('victory ok'\\)\")",
       "Bash(dir \"D:\\\\Projects\\\\3d_projects\\\\Ecofy\\\\Ecofy Mobile App\\\\src\\\\lib\" /b)",
       "Bash(npx expo *)",
-      "Bash(dir \"D:\\\\Projects\\\\3d_projects\\\\Ecofy\\\\Ecofy Mobile App\\\\src\\\\lib\\\\db\\\\repositories\" /b)"
+      "Bash(dir \"D:\\\\Projects\\\\3d_projects\\\\Ecofy\\\\Ecofy Mobile App\\\\src\\\\lib\\\\db\\\\repositories\" /b)",
+      "Bash(npx jest *)"
     ]
   }
 }

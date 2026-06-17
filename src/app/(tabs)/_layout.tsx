@@ -35,16 +35,22 @@ function TabIcon({ name, focused, color }: TabIconProps) {
   );
 }
 
-function tabLabel(label: string) {
-  return ({ focused, color }: { focused: boolean; color: string }) => (
-    <Text style={[s.tabLabel, focused && s.tabLabelActive, { color }]}>{label}</Text>
-  );
+function TabLabel({
+  label,
+  focused,
+  color,
+}: {
+  label: string;
+  focused: boolean;
+  color: string;
+}) {
+  return <Text style={[s.tabLabel, focused && s.tabLabelActive, { color }]}>{label}</Text>;
 }
 
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="home"
+      initialRouteName="today"
       screenOptions={{
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textMuted,
@@ -56,33 +62,51 @@ export default function TabsLayout() {
         headerRightContainerStyle: { paddingRight: 16 },
       }}
     >
+      {/* ── Today (daily guide) ── */}
+      <Tabs.Screen
+        name="today"
+        options={{
+          title: 'Today',
+          tabBarLabel: ({ focused, color }) => (
+            <TabLabel label="Today" focused={focused} color={color} />
+          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon name="today-outline" focused={focused} color={color} />,
+        }}
+      />
+
       {/* ── Farms (dashboard) ── */}
       <Tabs.Screen
         name="home"
         options={{
           title: 'Farms',
-          tabBarLabel: tabLabel('Farms'),
+          tabBarLabel: ({ focused, color }) => (
+            <TabLabel label="Farms" focused={focused} color={color} />
+          ),
           tabBarIcon: ({ focused, color }) => <TabIcon name="leaf-outline" focused={focused} color={color} />,
         }}
       />
 
-      {/* ── Log ── */}
+      {/* ── Journey (gamified guide) ── */}
       <Tabs.Screen
-        name="logbook"
+        name="journey"
         options={{
-          title: 'Log',
-          tabBarLabel: tabLabel('Log'),
-          tabBarIcon: ({ focused, color }) => <TabIcon name="clipboard-outline" focused={focused} color={color} />,
+          title: 'Journey',
+          tabBarLabel: ({ focused, color }) => (
+            <TabLabel label="Journey" focused={focused} color={color} />
+          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon name="trophy-outline" focused={focused} color={color} />,
         }}
       />
 
-      {/* ── Explore ── */}
+      {/* ── Notes ── */}
       <Tabs.Screen
-        name="explore"
+        name="logbook"
         options={{
-          title: 'Explore',
-          tabBarLabel: tabLabel('Explore'),
-          tabBarIcon: ({ focused, color }) => <TabIcon name="compass-outline" focused={focused} color={color} />,
+          title: 'Notes',
+          tabBarLabel: ({ focused, color }) => (
+            <TabLabel label="Notes" focused={focused} color={color} />
+          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon name="document-text-outline" focused={focused} color={color} />,
         }}
       />
 
@@ -91,13 +115,15 @@ export default function TabsLayout() {
         name="market"
         options={{
           title: 'Prices',
-          tabBarLabel: tabLabel('Prices'),
+          tabBarLabel: ({ focused, color }) => (
+            <TabLabel label="Prices" focused={focused} color={color} />
+          ),
           tabBarIcon: ({ focused, color }) => <TabIcon name="stats-chart-outline" focused={focused} color={color} />,
         }}
       />
 
       {/* Hidden routes (still accessible, not shown in tab bar) */}
-      <Tabs.Screen name="journey" options={{ href: null }} />
+      <Tabs.Screen name="explore" options={{ href: null }} />
       <Tabs.Screen name="farms"   options={{ href: null }} />
     </Tabs>
   );

@@ -23,6 +23,21 @@ function samePoint(a: BoundaryPoint, b: BoundaryPoint) {
   return a[0] === b[0] && a[1] === b[1];
 }
 
+function toFiniteNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 function isValidPoint(value: unknown): value is BoundaryPoint {
   return (
     Array.isArray(value) &&
@@ -34,32 +49,125 @@ function isValidPoint(value: unknown): value is BoundaryPoint {
   );
 }
 
+function normalizeBoundaryPoint(value: unknown): BoundaryPoint | null {
+  if (isValidPoint(value)) {
+    const first = value[0];
+    const second = value[1];
+
+    // Accept either [lng, lat] or [lat, lng] and normalize to [lng, lat].
+    if (Math.abs(first) <= 90 && Math.abs(second) > 90) {
+      return [second, first];
+    }
+
+    return [first, second];
+  }
+
+  if (value && typeof value === 'object') {
+    const latitude =
+      toFiniteNumber((value as { latitude?: unknown }).latitude) ??
+      toFiniteNumber((value as { lat?: unknown }).lat);
+    const longitude =
+      toFiniteNumber((value as { longitude?: unknown }).longitude) ??
+      toFiniteNumber((value as { lng?: unknown }).lng);
+
+    if (latitude != null && longitude != null) {
+      return [longitude, latitude];
+    }
+  }
+
+  return null;
+}
+
+function extractPolygonRing(value: unknown): unknown[] | null {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return null;
+    }
+
+    const first = value[0];
+    if (Array.isArray(first)) {
+      if (first.length > 0 && (Array.isArray(first[0]) || (first[0] && typeof first[0] === 'object'))) {
+        return first as unknown[];
+      }
+
+      return value as unknown[];
+    }
+
+    if (first && typeof first === 'object') {
+      return value as unknown[];
+    }
+
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    const shape = value as {
+      type?: string;
+      geometry?: unknown;
+      features?: unknown[];
+      coordinates?: unknown;
+      boundary?: unknown;
+    };
+
+    if (shape.type === 'Polygon') {
+      return extractPolygonRing(shape.coordinates);
+    }
+
+    if (shape.type === 'Feature') {
+      return extractPolygonRing(shape.geometry);
+    }
+
+    if (shape.type === 'FeatureCollection') {
+      const features = Array.isArray(shape.features) ? shape.features : [];
+      for (const feature of features) {
+        const ring = extractPolygonRing(feature);
+        if (ring) {
+          return ring;
+        }
+      }
+      return null;
+    }
+
+    if (shape.geometry) {
+      return extractPolygonRing(shape.geometry);
+    }
+
+    if (shape.coordinates) {
+      return extractPolygonRing(shape.coordinates);
+    }
+
+    if (shape.boundary) {
+      return extractPolygonRing(shape.boundary);
+    }
+  }
+
+  return null;
+}
+
 export function parseBoundaryPoints(boundaryJson?: string | null) {
   if (!boundaryJson?.trim()) {
     return [] as BoundaryPoint[];
   }
 
   try {
-    const parsed = JSON.parse(boundaryJson) as {
-      type?: string;
-      coordinates?: unknown;
-    };
-    const coordinates = parsed.coordinates;
+    const parsed = JSON.parse(boundaryJson) as unknown;
+    const ringValues = extractPolygonRing(parsed);
 
-    if (parsed.type !== 'Polygon' || !Array.isArray(coordinates)) {
-      return [] as BoundaryPoint[];
-    }
-    const firstRing = coordinates[0];
-    if (!Array.isArray(firstRing)) {
+    if (!Array.isArray(ringValues)) {
       return [] as BoundaryPoint[];
     }
 
     const ring: BoundaryPoint[] = [];
-    for (const value of firstRing as unknown[]) {
-      if (!isValidPoint(value)) {
+    for (const value of ringValues as unknown[]) {
+      const point = normalizeBoundaryPoint(value);
+      if (!point) {
         continue;
       }
-      ring.push([value[0], value[1]]);
+      ring.push(point);
     }
 
     if (ring.length > 1 && samePoint(ring[0], ring[ring.length - 1])) {
@@ -127,6 +235,33 @@ export function getPolygonCentroid(points: BoundaryPoint[]) {
   return {
     longitude: totals.longitude / points.length,
     latitude: totals.latitude / points.length,
+  };
+}
+
+export function getPolygonBounds(points: BoundaryPoint[]) {
+  if (!points.length) {
+    return null;
+  }
+
+  let minLongitude = points[0][0];
+  let maxLongitude = points[0][0];
+  let minLatitude = points[0][1];
+  let maxLatitude = points[0][1];
+
+  for (const [longitude, latitude] of points) {
+    minLongitude = Math.min(minLongitude, longitude);
+    maxLongitude = Math.max(maxLongitude, longitude);
+    minLatitude = Math.min(minLatitude, latitude);
+    maxLatitude = Math.max(maxLatitude, latitude);
+  }
+
+  return {
+    ne: [maxLongitude, maxLatitude] as BoundaryPoint,
+    sw: [minLongitude, minLatitude] as BoundaryPoint,
+    center: {
+      longitude: (minLongitude + maxLongitude) / 2,
+      latitude: (minLatitude + maxLatitude) / 2,
+    },
   };
 }
 

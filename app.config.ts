@@ -100,6 +100,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         RNMapboxMapsUseV11: true,
       },
     ],
+    '@react-native-google-signin/google-signin',
   ],
   experiments: {
     typedRoutes: true,
@@ -111,6 +112,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     mapboxStyleUrl:
       process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL ?? 'mapbox://styles/mapbox/satellite-streets-v12',
     environmentName: process.env.EXPO_PUBLIC_ENVIRONMENT ?? 'local',
+    googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '',
+    googleIosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '',
+    googleAndroidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '',
     eas: {
       projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
     },

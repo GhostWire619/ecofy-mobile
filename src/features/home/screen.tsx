@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -15,11 +14,7 @@ import {
 } from 'react-native';
 
 import { Screen } from '@/components/layout/screen';
-import {
-  farmRepository,
-  journeyRepository,
-  weatherRepository,
-} from '@/lib/db/repositories';
+import { mobileApi } from '@/lib/api/mobile';
 import type { FarmRecord, JourneyRecord, WeatherCacheRecord } from '@/lib/domain/types';
 import { theme } from '@/lib/theme';
 
@@ -44,43 +39,75 @@ function deriveRisk(journey?: JourneyRecord | null): RiskLevel {
   return 'critical';
 }
 
+function safeText(value: unknown, fallback = '') {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+}
+
+function safeNumber(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeFarmRecord(rawFarm: FarmRecord): FarmRecord {
+  return {
+    ...rawFarm,
+    name: safeText(rawFarm.name, 'Untitled farm'),
+    region: safeText(rawFarm.region, 'Unknown region'),
+    country: safeText(rawFarm.country, 'Unknown country'),
+    district: safeText(rawFarm.district, ''),
+    formatted_address: safeText(rawFarm.formatted_address, ''),
+    soil_type: safeText(rawFarm.soil_type, ''),
+    size_hectares: safeNumber(rawFarm.size_hectares, 0),
+    latitude: safeNumber(rawFarm.latitude, 0),
+    longitude: safeNumber(rawFarm.longitude, 0),
+    elevation: typeof rawFarm.elevation === 'number' && Number.isFinite(rawFarm.elevation) ? rawFarm.elevation : null,
+    irrigation_type: rawFarm.irrigation_type === 'irrigated' ? 'irrigated' : 'rain-fed',
+  };
+}
+
+function normalizeJourneyRecord(rawJourney: JourneyRecord): JourneyRecord {
+  return {
+    ...rawJourney,
+    crop_name: safeText(rawJourney.crop_name, 'No crop'),
+    common_name: safeText(rawJourney.common_name, safeText(rawJourney.crop_name, 'No crop')),
+    local_name: safeText(rawJourney.local_name, ''),
+    variety: safeText(rawJourney.variety, ''),
+    current_stage: safeText(rawJourney.current_stage, ''),
+    progress_percentage: safeNumber(rawJourney.progress_percentage, 0),
+  };
+}
+
 // ─── Farm action sheet ────────────────────────────────────────────────────────
 
 function FarmActionSheet({
   farm,
   onClose,
-  onDelete,
 }: {
   farm: FarmRecord;
   onClose: () => void;
-  onDelete: () => void;
 }) {
   const actions: {
     icon: React.ComponentProps<typeof Ionicons>['name'];
     label: string;
+    testID: string;
     onPress: () => void;
-    destructive?: boolean;
   }[] = [
     {
-      icon: 'map-outline',
-      label: 'View map',
+      icon: 'open-outline',
+      label: 'Open dashboard',
+      testID: 'farm-action-open-dashboard',
       onPress: () => { onClose(); router.push(`/farms/${farm.id}` as any); },
     },
     {
-      icon: 'create-outline',
-      label: 'Edit farm',
-      onPress: () => { onClose(); router.push(`/farms/${farm.id}` as any); },
+      icon: 'map-outline',
+      label: 'View on map',
+      testID: 'farm-action-view-map',
+      onPress: () => { onClose(); router.push(`/farms-map/${farm.id}` as any); },
     },
     {
       icon: 'sparkles-outline',
       label: 'Ask AI',
+      testID: 'farm-action-ask-ai',
       onPress: () => { onClose(); router.push('/assistant' as any); },
-    },
-    {
-      icon: 'trash-outline',
-      label: 'Delete farm',
-      destructive: true,
-      onPress: () => { onClose(); onDelete(); },
     },
   ];
 
@@ -96,11 +123,11 @@ function FarmActionSheet({
           <Text style={s.sheetFarmSub}>{[farm.district, farm.region].filter(Boolean).join(', ')}</Text>
           <View style={s.sheetDivider} />
           {actions.map((a) => (
-            <TouchableOpacity key={a.label} style={s.sheetItem} onPress={a.onPress} activeOpacity={0.7}>
-              <View style={[s.sheetItemIcon, a.destructive && s.sheetItemIconDanger]}>
-                <Ionicons name={a.icon} size={18} color={a.destructive ? theme.colors.danger : theme.colors.primary} />
+            <TouchableOpacity key={a.label} style={s.sheetItem} onPress={a.onPress} activeOpacity={0.7} testID={a.testID}>
+              <View style={s.sheetItemIcon}>
+                <Ionicons name={a.icon} size={18} color={theme.colors.primary} />
               </View>
-              <Text style={[s.sheetItemLabel, a.destructive && s.sheetItemLabelDanger]}>{a.label}</Text>
+              <Text style={s.sheetItemLabel}>{a.label}</Text>
             </TouchableOpacity>
           ))}
           <View style={{ height: 8 }} />
@@ -154,7 +181,13 @@ function FarmCard({
             <View style={[s.riskDot, { backgroundColor: riskDot }]} />
             <Text style={[s.riskLabel, { color: riskColor }]}>{riskLabel}</Text>
           </View>
-          <TouchableOpacity style={s.menuBtn} onPress={onMenuPress} hitSlop={8} activeOpacity={0.6}>
+          <TouchableOpacity
+            style={s.menuBtn}
+            onPress={onMenuPress}
+            hitSlop={8}
+            activeOpacity={0.6}
+            testID={`farm-menu-button-${farm.id}`}
+          >
             <Ionicons name="ellipsis-vertical" size={16} color={theme.colors.textMuted} />
           </TouchableOpacity>
         </View>
@@ -179,7 +212,7 @@ function FarmCard({
       {/* Bottom row: tags + weather */}
       <View style={s.cardBottom}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tagRow}>
-          <View style={s.tag}><Text style={s.tagText}>{farm.size_hectares.toFixed(1)} ha</Text></View>
+          <View style={s.tag}><Text style={s.tagText}>{safeNumber(farm.size_hectares, 0).toFixed(1)} ha</Text></View>
           {farm.irrigation_type ? <View style={s.tag}><Text style={s.tagText}>{farm.irrigation_type}</Text></View> : null}
           {farm.soil_type ? <View style={s.tag}><Text style={s.tagText}>{farm.soil_type}</Text></View> : null}
         </ScrollView>
@@ -217,22 +250,48 @@ function FarmsEmpty() {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export function HomeScreen() {
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [menuFarm, setMenuFarm] = useState<FarmRecord | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['farms-screen'],
     queryFn: async () => {
-      const [farms, journeys] = await Promise.all([
-        farmRepository.listFarms(),
-        journeyRepository.listJourneys(),
-      ]);
+      const farms = (await mobileApi.listFarms()).map(normalizeFarmRecord);
+      const journeysByFarm = await Promise.all(
+        farms.map(async (farm) => {
+          const journeys = await mobileApi
+            .listFarmJourneys(farm.id)
+            .then((items) => items.map(normalizeJourneyRecord))
+            .catch(() => []);
+          return [farm.id, journeys] as const;
+        }),
+      );
+      const weatherEntries = await Promise.all(
+        farms.map(async (farm) => {
+          const weather = await mobileApi.getWeatherForFarm(farm.id).catch(() => null);
+          return [
+            farm.id,
+            weather
+              ? ({
+                  farm_id: farm.id,
+                  summary_json: JSON.stringify(weather),
+                  fetched_at: new Date().toISOString(),
+                } satisfies WeatherCacheRecord)
+              : null,
+          ] as const;
+        }),
+      );
+
       const weatherMap: Record<string, WeatherCacheRecord | null> = {};
-      await Promise.all(farms.map(async (f) => {
-        weatherMap[f.id] = await weatherRepository.getWeatherForFarm(f.id);
-      }));
-      return { farms, journeys, weatherMap };
+      for (const [farmId, weather] of weatherEntries) {
+        weatherMap[farmId] = weather;
+      }
+
+      return {
+        farms,
+        journeys: journeysByFarm.flatMap(([, journeys]) => journeys),
+        weatherMap,
+      };
     },
   });
 
@@ -247,31 +306,12 @@ export function HomeScreen() {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
-      f.name.toLowerCase().includes(q) ||
-      f.region.toLowerCase().includes(q) ||
+      safeText(f.name).toLowerCase().includes(q) ||
+      safeText(f.region).toLowerCase().includes(q) ||
       (f.district ?? '').toLowerCase().includes(q) ||
-      (f.country ?? '').toLowerCase().includes(q)
+      safeText(f.country).toLowerCase().includes(q)
     );
   });
-
-  function handleDelete() {
-    if (!menuFarm) return;
-    Alert.alert(
-      'Delete farm',
-      `Are you sure you want to delete "${menuFarm.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await farmRepository.softDeleteFarm(menuFarm.id);
-            void queryClient.invalidateQueries({ queryKey: ['farms-screen'] });
-          },
-        },
-      ],
-    );
-  }
 
   return (
     <Screen edges={['bottom']} contentContainerStyle={s.content}>
@@ -280,12 +320,11 @@ export function HomeScreen() {
       <View style={s.header}>
         <View style={s.headerLeft}>
           <Text style={s.pageTitle}>Farms</Text>
-          {!isLoading && (
-            <Text style={s.pageSubtitle}>
-              {farms.length} farm{farms.length !== 1 ? 's' : ''}
-              {search && filtered.length !== farms.length ? ` · ${filtered.length} shown` : ''}
-            </Text>
-          )}
+          <Text style={s.pageSubtitle}>
+            {isLoading
+              ? 'Loading farm workspaces...'
+              : `${farms.length} farm${farms.length !== 1 ? 's' : ''} ready${search && filtered.length !== farms.length ? ` • ${filtered.length} shown` : ''}`}
+          </Text>
         </View>
         <TouchableOpacity style={s.addBtn} onPress={() => router.push('/farms/new')} activeOpacity={0.8}>
           <Ionicons name="add" size={18} color="#fff" />
@@ -317,6 +356,10 @@ export function HomeScreen() {
         <View style={s.loadingRow}>
           <Text style={s.loadingText}>Loading farms…</Text>
         </View>
+      ) : isError ? (
+        <View style={s.noResultsCard}>
+          <Text style={s.noResultsText}>{error instanceof Error ? error.message : 'Could not load farms.'}</Text>
+        </View>
       ) : filtered.length > 0 ? (
         filtered.map((farm) => (
           <FarmCard
@@ -329,7 +372,7 @@ export function HomeScreen() {
         ))
       ) : search ? (
         <View style={s.noResultsCard}>
-          <Text style={s.noResultsText}>No farms match "{search}"</Text>
+          <Text style={s.noResultsText}>No farms match {search}</Text>
         </View>
       ) : (
         <FarmsEmpty />
@@ -340,7 +383,6 @@ export function HomeScreen() {
         <FarmActionSheet
           farm={menuFarm}
           onClose={() => setMenuFarm(null)}
-          onDelete={handleDelete}
         />
       )}
 
@@ -362,7 +404,6 @@ const s = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     borderRadius: theme.radius.pill,
     paddingHorizontal: 14, paddingVertical: 9,
-    shadowColor: theme.colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
   },
   addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
@@ -371,14 +412,13 @@ const s = StyleSheet.create({
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border,
     paddingHorizontal: 14, paddingVertical: 10,
-    ...theme.shadow,
   },
   searchInput: { flex: 1, fontSize: 14, color: theme.colors.text, paddingVertical: 0 },
 
   // ── Card ──
   card: {
     backgroundColor: theme.colors.surface, borderRadius: 20, padding: 14,
-    borderWidth: 1, borderColor: theme.colors.border, gap: 10, ...theme.shadow,
+    borderWidth: 1, borderColor: theme.colors.border, gap: 10,
   },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
@@ -436,9 +476,7 @@ const s = StyleSheet.create({
     backgroundColor: theme.colors.primary + '14',
     alignItems: 'center', justifyContent: 'center',
   },
-  sheetItemIconDanger: { backgroundColor: theme.colors.danger + '14' },
   sheetItemLabel: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
-  sheetItemLabelDanger: { color: theme.colors.danger },
 
   // ── Empty ──
   emptyCard: {

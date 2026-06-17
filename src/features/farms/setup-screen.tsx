@@ -28,6 +28,7 @@ import { useAuth } from '@/lib/auth/provider';
 import { cropCatalog } from '@/lib/constants/crops';
 import { farmRepository, journeyRepository } from '@/lib/db/repositories';
 import type { CropCatalogItem } from '@/lib/domain/types';
+import { useI18n } from '@/lib/i18n';
 import { queueFarmSync, queueJourneySync } from '@/lib/sync/engine';
 import { theme } from '@/lib/theme';
 
@@ -55,16 +56,30 @@ const HECTARES_PER_ACRE = 0.404686;
 
 const QUICK_NAMES = ['Home Plot', 'Field A', 'Shamba 1'];
 
+// Default to central Tanzania (Dodoma) — the map geolocates to the farmer's real
+// position on open; this is just the fallback before that resolves.
 const defaultSelection: FarmBoundarySelection = {
-  latitude: -1.2921,
-  longitude: 36.8219,
-  country: 'Kenya',
-  region: 'Nairobi',
+  latitude: -6.1630,
+  longitude: 35.7516,
+  country: 'Tanzania',
+  region: 'Dodoma',
   district: '',
   formattedAddress: '',
   mappingMode: 'polygon',
   mappedAreaHectares: null,
   fieldBoundaryJson: null,
+};
+
+// Low-typing farm-size shortcuts (acres) — most smallholders are 1–5 acres.
+const QUICK_SIZES = ['1', '2', '5'];
+
+// When the farmer will plant — maps to a planting date the planner uses. Kept to
+// three plain, tappable choices instead of a date picker (low-literacy friendly).
+type PlantingChoice = 'planted' | 'this_month' | 'later';
+const PLANTING_OFFSET_DAYS: Record<PlantingChoice, number> = {
+  planted: 0,
+  this_month: 0,
+  later: 45,
 };
 
 
@@ -76,6 +91,8 @@ const defaultSelection: FarmBoundarySelection = {
 export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
   const queryClient = useQueryClient();
   const { markOnboardingComplete } = useAuth();
+  const { locale } = useI18n();
+  const sw = locale === 'sw';
 
   const [crops, setCrops] = useState<CropCatalogItem[]>(cropCatalog);
   const [loadingCrops, setLoadingCrops] = useState(false);
@@ -89,7 +106,6 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
       })
       .catch(() => { /* keep local fallback */ })
       .finally(() => setLoadingCrops(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const { height: SCREEN_H } = useWindowDimensions();
@@ -134,8 +150,7 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
     if (mappingMode === 'coordinates') {
       translateY.value = withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mappingMode]);
+  }, [mappingMode, translateY]);
 
   // Farm data
   const [boundarySelection, setBoundarySelection] = useState<FarmBoundarySelection>(defaultSelection);
@@ -144,11 +159,13 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
 
   const [form, setForm] = useState({
     name: mode === 'onboarding' ? 'Main Farm' : '',
-    sizeAcres: '6.2',
+    sizeAcres: '',
     cropId: '',
   });
+  const [plantingChoice, setPlantingChoice] = useState<PlantingChoice>('this_month');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!boundarySelection.mappedAreaHectares || sizeEditedManually) return;
@@ -192,10 +209,14 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
       await queueFarmSync(farm, plot);
 
       if (form.cropId) {
+        const offsetDays = PLANTING_OFFSET_DAYS[plantingChoice];
+        const plantingDate = new Date();
+        plantingDate.setDate(plantingDate.getDate() + offsetDays);
         const draft = await journeyRepository.createJourneyDraft({
           farm_id: farm.id,
           plot_id: plot.id,
           crop_id: form.cropId,
+          planting_date: plantingDate.toISOString().slice(0, 10),
         });
         await queueJourneySync(draft.journey);
       }
@@ -203,8 +224,10 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
       await queryClient.invalidateQueries();
 
       if (mode === 'onboarding') {
-        await markOnboardingComplete();
-        router.replace('/(tabs)/home');
+        // Show the reassuring success state first. We only mark onboarding
+        // complete on the Continue tap — otherwise the navigation gate would
+        // immediately redirect to Today and skip this screen.
+        setSubmitted(true);
         return;
       }
       router.replace(`/farms/${farm.id}`);
@@ -353,19 +376,36 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
             </View>
 
             <TextField
-              label="Farm size (acres)"
+              label={sw ? 'Ukubwa wa shamba (ekari)' : 'Farm size (acres)'}
               value={form.sizeAcres}
               onChangeText={(v) => {
                 setSizeEditedManually(true);
                 setForm((c) => ({ ...c, sizeAcres: v }));
               }}
               keyboardType="decimal-pad"
+              placeholder={sw ? 'mf. 2' : 'e.g. 2'}
               hint={
                 boundarySelection.mappedAreaHectares && !sizeEditedManually
                   ? `Auto-filled from boundary · ${(Number(form.sizeAcres) * HECTARES_PER_ACRE).toFixed(2)} ha`
                   : `Converts to ${(Number(form.sizeAcres) * HECTARES_PER_ACRE || 0).toFixed(2)} hectares`
               }
             />
+            <View style={s.quickRow}>
+              {QUICK_SIZES.map((n) => (
+                <TouchableOpacity
+                  key={n}
+                  style={[s.quickChip, form.sizeAcres === n && s.quickChipActive]}
+                  onPress={() => {
+                    setSizeEditedManually(true);
+                    setForm((c) => ({ ...c, sizeAcres: n }));
+                  }}
+                >
+                  <Text style={[s.quickChipText, form.sizeAcres === n && s.quickChipTextActive]}>
+                    {n} {sw ? 'ekari' : 'acres'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* Crop — optional inline dropdown */}
@@ -417,9 +457,54 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
               </View>
             )}
 
-            <Text style={s.fieldHint}>
-              Pick the first crop now to skip the extra crop-selection step.
-            </Text>
+            {/* Don't know what to plant or which seed? Hand off to the AI. */}
+            <TouchableOpacity style={s.aiHelp} onPress={() => router.push('/assistant')} activeOpacity={0.85}>
+              <Text style={s.aiHelpEmoji}>💬</Text>
+              <Text style={s.aiHelpText}>
+                {sw
+                  ? 'Hujui upande nini au utumie mbegu gani? Uliza Ecofy AI'
+                  : 'Not sure what to plant or which seed? Ask Ecofy AI'}
+              </Text>
+              <Text style={s.aiHelpChevron}>›</Text>
+            </TouchableOpacity>
+
+            {form.cropId ? (
+              <View style={s.plantingBlock}>
+                <Text style={s.fieldLabel}>{sw ? 'Utapanda lini?' : 'When will you plant?'}</Text>
+                <View style={s.plantingRow}>
+                  {([
+                    { key: 'planted', en: 'Already planted', sw: 'Nimeshapanda' },
+                    { key: 'this_month', en: 'This month', sw: 'Mwezi huu' },
+                    { key: 'later', en: 'Later', sw: 'Baadaye' },
+                  ] as { key: PlantingChoice; en: string; sw: string }[]).map((opt) => {
+                    const active = plantingChoice === opt.key;
+                    return (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[s.plantingChip, active && s.plantingChipActive]}
+                        onPress={() => setPlantingChoice(opt.key)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[s.plantingChipText, active && s.plantingChipTextActive]}>
+                          {sw ? opt.sw : opt.en}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <Text style={s.fieldHint}>
+                  {sw
+                    ? 'Ecofy itachagua mbegu bora kwa eneo lako — unaweza kubadilisha baadaye.'
+                    : 'Ecofy will pick the best seed variety for your area — you can change it later.'}
+                </Text>
+              </View>
+            ) : (
+              <Text style={s.fieldHint}>
+                {sw
+                  ? 'Chagua zao la kwanza sasa ili kuruka hatua ya ziada.'
+                  : 'Pick the first crop now to skip the extra crop-selection step.'}
+              </Text>
+            )}
           </View>
 
           {/* Submit */}
@@ -435,6 +520,29 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
           />
         </ScrollView>
       </Animated.View>
+
+      {/* Onboarding success — reassures the farmer the plan is being built. */}
+      {submitted && (
+        <View style={s.successOverlay}>
+          <View style={s.successCard}>
+            <Text style={s.successEmoji}>🎉</Text>
+            <Text style={s.successTitle}>{sw ? 'Shamba lako liko tayari!' : 'Your farm is ready!'}</Text>
+            <Text style={s.successBody}>
+              {sw
+                ? 'Umeanza safari yako ya kwanza 🌱 Tunaandaa mpango wako wa msimu sasa — utakuwa tayari hivi punde.'
+                : "You've started your first journey 🌱 We're preparing your season plan now — it'll be ready in a moment."}
+            </Text>
+            <Button
+              label={sw ? 'Endelea' : 'Continue'}
+              onPress={() => {
+                void markOnboardingComplete().finally(() =>
+                  router.replace('/(tabs)/today' as never),
+                );
+              }}
+            />
+          </View>
+        </View>
+      )}
 
     </View>
   );
@@ -594,5 +702,59 @@ const s = StyleSheet.create({
   addCoordText: { color: theme.colors.primary, fontWeight: '700', fontSize: 14 },
 
   error: { color: theme.colors.danger, fontSize: 14 },
-});
 
+  // AI help escape hatch
+  aiHelp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: theme.colors.primary + '12',
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.primary + '33',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  aiHelpEmoji: { fontSize: 18 },
+  aiHelpText: { flex: 1, fontSize: 14, fontWeight: '600', color: theme.colors.primaryDark, lineHeight: 19 },
+  aiHelpChevron: { fontSize: 22, color: theme.colors.primary, fontWeight: '700' },
+
+  // Planting window
+  plantingBlock: { gap: theme.spacing.sm },
+  fieldLabel: { fontSize: 15, fontWeight: '700', color: theme.colors.text },
+  plantingRow: { flexDirection: 'row', gap: theme.spacing.sm },
+  plantingChip: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.md,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+  },
+  plantingChipActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.surfaceMuted },
+  plantingChipText: { fontSize: 13, fontWeight: '700', color: theme.colors.textMuted, textAlign: 'center' },
+  plantingChipTextActive: { color: theme.colors.primary },
+
+  // Onboarding success overlay
+  successOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    backgroundColor: 'rgba(10,23,14,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  successCard: {
+    width: '100%',
+    backgroundColor: theme.colors.background,
+    borderRadius: 20,
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+    alignItems: 'center',
+  },
+  successEmoji: { fontSize: 44 },
+  successTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
+  successBody: { fontSize: 15, color: theme.colors.textMuted, textAlign: 'center', lineHeight: 22 },
+});

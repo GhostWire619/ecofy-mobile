@@ -33,6 +33,8 @@ type RequestOptions = {
   headers?: HeadersInit;
   auth?: boolean;
   expectedStatuses?: number[];
+  /** Override the default 15s timeout (e.g. image upload + AI inference). */
+  timeoutMs?: number;
 };
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -213,16 +215,20 @@ async function performRequest<T>(path: string, options: RequestOptions, accessTo
   let response: Response;
 
   try {
-    response = await fetchWithTimeout(url, {
-      method,
-      headers: {
-        Accept: 'application/json',
-        ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        ...options.headers,
+    response = await fetchWithTimeout(
+      url,
+      {
+        method,
+        headers: {
+          Accept: 'application/json',
+          ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          ...options.headers,
+        },
+        body: options.body,
       },
-      body: options.body,
-    });
+      options.timeoutMs,
+    );
   } catch (error) {
     finishApiDebugRequest(requestDebugEntry, {
       outcome: 'error',

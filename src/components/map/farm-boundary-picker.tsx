@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -127,10 +127,9 @@ function MapBtn({ label, active, onPress, disabled }: { label: string; active?: 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHandle, bottomInset = 88 }: Props) {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const initPoints = useMemo(() => parseBoundaryPoints(value?.fieldBoundaryJson ?? null), []);
-
-  const [points, setPoints] = useState<BoundaryPoint[]>(initPoints);
+  const [points, setPoints] = useState<BoundaryPoint[]>(
+    () => parseBoundaryPoints(value?.fieldBoundaryJson ?? null),
+  );
   const [centerPin, setCenterPin] = useState<BoundaryPoint | null>(
     value ? [value.longitude, value.latitude] : null,
   );
@@ -172,11 +171,6 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
 
   // Expose coord state to parent
   useEffect(() => {
-    onHandle?.({ coordRows, setCoordRows, coordError, applyCoordinates });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coordRows, coordError]);
-
-  useEffect(() => {
     return () => {
       walkSubRef.current?.remove();
       if (geoTimer.current) clearTimeout(geoTimer.current);
@@ -196,11 +190,10 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
       } catch { /* silent — keep default center */ }
     }
     void init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Geocode ──
-  function scheduleGeocode(lng: number, lat: number, nextPts: BoundaryPoint[], nextMode: MappingMode) {
+  const scheduleGeocode = useCallback((lng: number, lat: number, nextPts: BoundaryPoint[], nextMode: MappingMode) => {
     if (geoTimer.current) clearTimeout(geoTimer.current);
     geoTimer.current = setTimeout(async () => {
       setIsResolving(true);
@@ -220,7 +213,13 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
       } catch { /* keep existing */ }
       finally { setIsResolving(false); }
     }, 400);
-  }
+  }, [
+    onChange,
+    value?.country,
+    value?.district,
+    value?.formattedAddress,
+    value?.region,
+  ]);
 
   // ── Map tap ──
   function handleMapPress(event: any) {
@@ -332,7 +331,7 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
   function stopWalk() { walkSubRef.current?.remove(); walkSubRef.current = null; setIsWalking(false); }
 
   // ── Coordinates ──
-  function applyCoordinates() {
+  const applyCoordinates = useCallback(() => {
     setCoordError(null);
     const parsed: BoundaryPoint[] = [];
     for (let i = 0; i < coordRows.length; i++) {
@@ -347,7 +346,11 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
     setCameraCenter([c.longitude, c.latitude]); setZoomLevel(14);
     cameraRef.current?.setCamera({ centerCoordinate: [c.longitude, c.latitude], zoomLevel: 14, animationDuration: 600 });
     scheduleGeocode(c.longitude, c.latitude, parsed, 'polygon');
-  }
+  }, [coordRows, scheduleGeocode]);
+
+  useEffect(() => {
+    onHandle?.({ coordRows, setCoordRows, coordError, applyCoordinates });
+  }, [applyCoordinates, coordError, coordRows, onHandle]);
 
   // ── Summary ──
   const summaryText = isResolving ? '⏳ Detecting…'

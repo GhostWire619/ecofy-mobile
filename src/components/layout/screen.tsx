@@ -1,4 +1,11 @@
-import { ScrollView, StyleSheet, View, type ScrollViewProps, type ViewProps } from 'react-native';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ScrollViewProps,
+  type ViewProps,
+} from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { theme } from '@/lib/theme';
@@ -6,9 +13,20 @@ import { theme } from '@/lib/theme';
 type ScreenProps = ScrollViewProps & {
   edges?: Edge[];
   scrollEnabled?: boolean;
+  /** Pass to enable pull-to-refresh. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 };
 
-export function Screen({ children, contentContainerStyle, edges = ['bottom'], scrollEnabled = true, ...props }: ScreenProps) {
+export function Screen({
+  children,
+  contentContainerStyle,
+  edges = ['bottom'],
+  scrollEnabled = true,
+  onRefresh,
+  refreshing = false,
+  ...props
+}: ScreenProps) {
   return (
     <SafeAreaView style={styles.safeArea} edges={edges}>
       <ScrollView
@@ -17,6 +35,16 @@ export function Screen({ children, contentContainerStyle, edges = ['bottom'], sc
         scrollEnabled={scrollEnabled}
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.primary}
+              colors={[theme.colors.primary]}
+            />
+          ) : undefined
+        }
         {...props}
       >
         {children}

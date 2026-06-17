@@ -248,6 +248,7 @@ CREATE TABLE IF NOT EXISTS assistant_messages (
   journey_id TEXT,
   role TEXT NOT NULL,
   text TEXT NOT NULL,
+  image_local_uri TEXT,
   delivery_status TEXT NOT NULL DEFAULT 'local',
   created_at TEXT NOT NULL,
   FOREIGN KEY (farm_id) REFERENCES farms(id) ON DELETE SET NULL,
@@ -278,6 +279,17 @@ CREATE TABLE IF NOT EXISTS sync_conflicts (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS engagement (
+  user_id TEXT PRIMARY KEY NOT NULL,
+  summary_json TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS app_prefs (
+  key TEXT PRIMARY KEY NOT NULL,
+  value TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_farms_sync_status ON farms(sync_status);
 CREATE INDEX IF NOT EXISTS idx_plots_farm_id ON plots(farm_id);
 CREATE INDEX IF NOT EXISTS idx_journeys_farm_id ON journeys(farm_id);
@@ -295,4 +307,17 @@ CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status, created_a
 
 export async function runMigrations(db: SQLiteDatabase) {
   await db.execAsync(schema);
+
+  // Additive column migrations for installs created before the column existed.
+  // SQLite has no "ADD COLUMN IF NOT EXISTS", so each is guarded individually.
+  const additiveColumns = [
+    "ALTER TABLE assistant_messages ADD COLUMN image_local_uri TEXT;",
+  ];
+  for (const stmt of additiveColumns) {
+    try {
+      await db.execAsync(stmt);
+    } catch {
+      // Column already exists — safe to ignore.
+    }
+  }
 }

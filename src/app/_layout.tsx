@@ -7,6 +7,7 @@ import { ActivityIndicator, AppState, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { XpGainProvider } from '@/components/game';
 import { AuthProvider, useAuth } from '@/lib/auth/provider';
 import { farmRepository } from '@/lib/db/repositories';
 import { I18nProvider, useI18n } from '@/lib/i18n';
@@ -58,7 +59,7 @@ function NavigationGate() {
       farmRepository.listFarms().then((farms) => {
         if (farms.length > 0) {
           markOnboardingComplete().catch(() => undefined);
-          router.replace('/(tabs)/home');
+          router.replace('/(tabs)/today' as never);
         } else {
           router.replace('/(onboarding)/welcome');
         }
@@ -69,7 +70,7 @@ function NavigationGate() {
     }
 
     if (isAuthenticated && onboardingComplete && (inAuth || inOnboarding)) {
-      router.replace('/(tabs)/home');
+      router.replace('/(tabs)/today' as never);
     }
   }, [i18nReady, isAuthenticated, isReady, markOnboardingComplete, onboardingComplete, segments]);
 
@@ -118,8 +119,13 @@ function NavigationGate() {
       <Stack.Screen
         name="assistant"
         options={{
-          title: 'AI Assistant',
-          presentation: 'modal',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="notes/[logId]"
+        options={{
+          title: 'Note',
         }}
       />
       <Stack.Screen
@@ -130,9 +136,23 @@ function NavigationGate() {
         }}
       />
       <Stack.Screen
+        name="scan"
+        options={{
+          title: 'Scan crop',
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
         name="farms/[farmId]"
         options={{
-          title: 'Farm detail',
+          headerShown: false,
+          presentation: 'fullScreenModal',
+        }}
+      />
+      <Stack.Screen
+        name="farms-map/[farmId]"
+        options={{
+          headerShown: false,
         }}
       />
       <Stack.Screen
@@ -153,8 +173,10 @@ export default function RootLayout() {
           <I18nProvider>
             <AuthProvider>
               <SyncProvider>
-                <StatusBar style="dark" />
-                <NavigationGate />
+                <XpGainProvider>
+                  <StatusBar style="dark" />
+                  <NavigationGate />
+                </XpGainProvider>
               </SyncProvider>
             </AuthProvider>
           </I18nProvider>

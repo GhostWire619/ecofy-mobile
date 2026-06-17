@@ -19,11 +19,12 @@ import {
 } from '@/lib/api/client';
 import { bootstrapCurrentUser } from '@/lib/bootstrap/bootstrap';
 import type { AuthState, UserProfile } from '@/lib/domain/types';
-import { saveUserProfile, seedBootstrapDefaults, sessionRepository } from '@/lib/db/repositories';
+import { clearLocalUserData, saveUserProfile, seedBootstrapDefaults, sessionRepository } from '@/lib/db/repositories';
 
 type AuthContextValue = AuthState & {
   onboardingComplete: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string, preferredLanguage?: 'en' | 'sw') => Promise<void>;
   register: (input: {
     email: string;
     password: string;
@@ -59,11 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void (async () => {
       try {
         await seedBootstrapDefaults();
-        const [tokens, storedUser, session] = await Promise.all([
+        const [tokens, storedUser] = await Promise.all([
           getStoredTokens(),
           getStoredUser(),
-          sessionRepository.getSession(),
         ]);
+        const session = await sessionRepository.getSession(storedUser?.id);
 
         setOnboardingComplete(Boolean(session?.onboarding_complete));
         setAuthState({
@@ -83,30 +84,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const response = await authApi.login(email, password);
-    await persistTokens({
-      accessToken: response.access_token,
-      refreshToken: response.refresh_token,
-    });
-    await persistStoredUser(response.user);
-    await saveUserProfile(response.user);
-    await bootstrapCurrentUser().catch(async () => {
-      await sessionRepository.upsertSession({
-        user_id: response.user.id,
-        locale: response.user.preferred_language,
-        updated_at: new Date().toISOString(),
-      });
-    });
+  const completeSignIn = useCallback(
+    async (response: { access_token: string; refresh_token: string; user: UserProfile }) => {
+      // If local data belongs to a different account (e.g. a prior login on this
+      // device), wipe it so the new user starts clean — no inherited farms or
+      // stale onboarding flag, and no cross-account data leakage.
+      const priorUserId = await sessionRepository.getOwnerUserId();
+      if (priorUserId && priorUserId !== response.user.id) {
+        await clearLocalUserData();
+      }
 
-    const session = await sessionRepository.getSession();
-    setOnboardingComplete(Boolean(session?.onboarding_complete));
-    setAuthState({
-      isReady: true,
-      isAuthenticated: true,
-      user: response.user,
-    });
-  }, []);
+      await persistTokens({
+        accessToken: response.access_token,
+        refreshToken: response.refresh_token,
+      });
+      await persistStoredUser(response.user);
+      await saveUserProfile(response.user);
+      await bootstrapCurrentUser().catch(async () => {
+        await sessionRepository.upsertSession({
+          user_id: response.user.id,
+          locale: response.user.preferred_language,
+          updated_at: new Date().toISOString(),
+        });
+      });
+
+      const session = await sessionRepository.getSession(response.user.id);
+      setOnboardingComplete(Boolean(session?.onboarding_complete));
+      setAuthState({ isReady: true, isAuthenticated: true, user: response.user });
+    },
+    [],
+  );
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const response = await authApi.login(email, password);
+      await completeSignIn(response);
+    },
+    [completeSignIn],
+  );
+
+  const loginWithGoogle = useCallback(
+    async (idToken: string, preferredLanguage: 'en' | 'sw' = 'en') => {
+      const response = await authApi.googleSignIn(idToken, preferredLanguage);
+      await completeSignIn(response);
+    },
+    [completeSignIn],
+  );
 
   const register = useCallback(
     async (input: {
@@ -139,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await bootstrapCurrentUser();
-    const session = await sessionRepository.getSession();
+    const session = await sessionRepository.getSession(authState.user.id);
     setOnboardingComplete(Boolean(session?.onboarding_complete));
   }, [authState.user]);
 
@@ -161,12 +184,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...authState,
       onboardingComplete,
       login,
+      loginWithGoogle,
       register,
       logout,
       refreshBootstrap,
       markOnboardingComplete,
     }),
-    [authState, onboardingComplete, login, register, logout, refreshBootstrap, markOnboardingComplete],
+    [authState, onboardingComplete, login, loginWithGoogle, register, logout, refreshBootstrap, markOnboardingComplete],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

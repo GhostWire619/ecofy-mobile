@@ -4,13 +4,14 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/core/button';
 import { Card } from '@/components/core/card';
+import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { TextField } from '@/components/forms/text-field';
 import { Screen } from '@/components/layout/screen';
 import { useAuth } from '@/lib/auth/provider';
 import { theme } from '@/lib/theme';
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +24,18 @@ export default function LoginScreen() {
       await login(email.trim(), password);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Sign in failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onGoogleToken(idToken: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      await loginWithGoogle(idToken);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Google sign-in failed');
     } finally {
       setLoading(false);
     }
@@ -55,6 +68,11 @@ export default function LoginScreen() {
           label={loading ? 'Signing in...' : 'Sign in'}
           disabled={loading}
           onPress={() => void submit()}
+        />
+        <GoogleSignInButton
+          disabled={loading}
+          onToken={(token) => void onGoogleToken(token)}
+          onError={(message) => setError(message)}
         />
         <Button
           label="Create account"

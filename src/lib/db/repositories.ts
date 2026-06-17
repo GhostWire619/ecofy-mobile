@@ -5,6 +5,7 @@ import { cropCatalog, getCropCatalogItem } from '@/lib/constants/crops';
 import { getDatabase, withTransaction } from '@/lib/db/database';
 import type {
   AssistantMessageRecord,
+  EngagementSummary,
   FarmRecord,
   JourneyRecord,
   LogImageRecord,
@@ -49,6 +50,28 @@ function values<T extends object>(row: T) {
   return Object.values(row as Record<string, unknown>) as SQLiteBindValue[];
 }
 
+function isNamedParams(
+  params?: SQLiteBindValue[] | Record<string, SQLiteBindValue>,
+): params is Record<string, SQLiteBindValue> {
+  return Boolean(params) && !Array.isArray(params);
+}
+
+async function runStatement(
+  db: SQLiteDatabase,
+  query: string,
+  params?: SQLiteBindValue[] | Record<string, SQLiteBindValue>,
+) {
+  if (!params) {
+    return db.runAsync(query);
+  }
+
+  if (isNamedParams(params)) {
+    return db.runAsync(query, params);
+  }
+
+  return db.runAsync(query, ...params);
+}
+
 async function upsertMany<T extends object>(
   db: SQLiteDatabase,
   table: string,
@@ -67,7 +90,8 @@ async function upsertMany<T extends object>(
       .map((column) => `${column} = excluded.${column}`)
       .join(', ');
 
-    await db.runAsync(
+    await runStatement(
+      db,
       `INSERT INTO ${table} (${rowColumns.join(', ')}) VALUES (${placeholders})
        ON CONFLICT(${conflictKey}) DO UPDATE SET ${assignments};`,
       values(row),
@@ -77,7 +101,15 @@ async function upsertMany<T extends object>(
 
 async function listRows<T>(query: string, params?: SQLiteBindValue[] | Record<string, SQLiteBindValue>) {
   const db = await getDatabase();
-  return params ? db.getAllAsync<T>(query, params) : db.getAllAsync<T>(query);
+  if (!params) {
+    return db.getAllAsync<T>(query);
+  }
+
+  if (isNamedParams(params)) {
+    return db.getAllAsync<T>(query, params);
+  }
+
+  return db.getAllAsync<T>(query, ...params);
 }
 
 async function getFirstRow<T>(
@@ -85,15 +117,39 @@ async function getFirstRow<T>(
   params?: SQLiteBindValue[] | Record<string, SQLiteBindValue>,
 ) {
   const db = await getDatabase();
-  return params ? db.getFirstAsync<T>(query, params) : db.getFirstAsync<T>(query);
+  if (!params) {
+    return db.getFirstAsync<T>(query);
+  }
+
+  if (isNamedParams(params)) {
+    return db.getFirstAsync<T>(query, params);
+  }
+
+  return db.getFirstAsync<T>(query, ...params);
 }
 
 export const sessionRepository = {
-  async getSession() {
-    return getFirstRow<SessionRecord>('SELECT * FROM session LIMIT 1;');
+  async getSession(userId?: string) {
+    if (userId) {
+      return getFirstRow<SessionRecord>('SELECT * FROM session WHERE user_id = ? LIMIT 1;', [userId]);
+    }
+    // No user given: prefer the most recent real session over the seeded
+    // 'anonymous' placeholder so we don't read a stale/wrong onboarding flag.
+    return (
+      (await getFirstRow<SessionRecord>(
+        "SELECT * FROM session WHERE user_id != 'anonymous' ORDER BY updated_at DESC LIMIT 1;",
+      )) ?? (await getFirstRow<SessionRecord>('SELECT * FROM session LIMIT 1;'))
+    );
+  },
+  /** The real (non-anonymous) user the local data currently belongs to, if any. */
+  async getOwnerUserId(): Promise<string | null> {
+    const row = await getFirstRow<{ user_id: string }>(
+      "SELECT user_id FROM session WHERE user_id != 'anonymous' ORDER BY updated_at DESC LIMIT 1;",
+    );
+    return row?.user_id ?? null;
   },
   async upsertSession(partial: Partial<SessionRecord> & { user_id: string }) {
-    const existing = await this.getSession();
+    const existing = await this.getSession(partial.user_id);
     const record: SessionRecord = {
       user_id: partial.user_id,
       locale: partial.locale ?? existing?.locale ?? 'en',
@@ -110,6 +166,29 @@ export const sessionRepository = {
     return record;
   },
 };
+
+export const prefsRepository = {
+  async get(key: string) {
+    const row = await getFirstRow<{ value: string }>(
+      'SELECT value FROM app_prefs WHERE key = ? LIMIT 1;',
+      [key],
+    );
+    return row?.value ?? null;
+  },
+  async set(key: string, value: string | null) {
+    const db = await getDatabase();
+    if (value == null) {
+      await runStatement(db, 'DELETE FROM app_prefs WHERE key = ?;', [key]);
+      return;
+    }
+    await runStatement(db, 'INSERT OR REPLACE INTO app_prefs (key, value) VALUES (?, ?);', [
+      key,
+      value,
+    ]);
+  },
+};
+
+const SELECTED_JOURNEY_KEY = 'selected_journey_id';
 
 export const farmRepository = {
   async listFarms() {
@@ -182,7 +261,8 @@ export const farmRepository = {
   },
   async softDeleteFarm(id: string) {
     const db = await getDatabase();
-    await db.runAsync(
+    await runStatement(
+      db,
       'UPDATE farms SET deleted_at = ?, sync_status = ? WHERE id = ?;',
       [nowIso(), 'pending', id],
     );
@@ -193,6 +273,12 @@ export const plotRepository = {
   async listPlotsForFarm(farmId: string) {
     return listRows<PlotRecord>(
       'SELECT * FROM plots WHERE farm_id = ? AND deleted_at IS NULL ORDER BY is_default DESC, updated_at DESC;',
+      [farmId],
+    );
+  },
+  async getDefaultPlotForFarm(farmId: string) {
+    return getFirstRow<PlotRecord>(
+      'SELECT * FROM plots WHERE farm_id = ? AND deleted_at IS NULL ORDER BY is_default DESC, updated_at DESC LIMIT 1;',
       [farmId],
     );
   },
@@ -437,8 +523,26 @@ export const journeyRepository = {
     );
   },
   async getActiveJourney() {
+    // Honour the farmer's explicitly selected journey if it still exists.
+    const selectedId = await prefsRepository.get(SELECTED_JOURNEY_KEY);
+    if (selectedId) {
+      const selected = await getFirstRow<JourneyRecord>(
+        'SELECT * FROM journeys WHERE id = ? AND deleted_at IS NULL LIMIT 1;',
+        [selectedId],
+      );
+      if (selected) return selected;
+    }
     return getFirstRow<JourneyRecord>(
       "SELECT * FROM journeys WHERE deleted_at IS NULL AND status IN ('active', 'planned') ORDER BY planting_date DESC LIMIT 1;",
+    );
+  },
+  async setSelectedJourney(journeyId: string | null) {
+    await prefsRepository.set(SELECTED_JOURNEY_KEY, journeyId);
+  },
+  async getActiveJourneyForFarm(farmId: string) {
+    return getFirstRow<JourneyRecord>(
+      "SELECT * FROM journeys WHERE farm_id = ? AND deleted_at IS NULL AND status IN ('active', 'planned') ORDER BY planting_date DESC LIMIT 1;",
+      [farmId],
     );
   },
   async saveJourney(record: JourneyRecord) {
@@ -456,6 +560,8 @@ export const journeyRepository = {
     const plantingDate = input.planting_date
       ? new Date(input.planting_date)
       : startOfToday();
+    // A future planting date is a pre-planting (planned) journey; today/past is active.
+    const isFuturePlanting = plantingDate.getTime() > startOfToday().getTime();
     const journey: JourneyRecord = {
       ...syncFields(),
       farm_id: input.farm_id,
@@ -469,7 +575,7 @@ export const journeyRepository = {
       expected_harvest_date: formatISO(addDays(plantingDate, crop.maturity_days_max), {
         representation: 'date',
       }),
-      status: 'active',
+      status: isFuturePlanting ? 'planned' : 'active',
       progress_percentage: 0,
       current_stage: 'Germination',
       predicted_yield: null,
@@ -519,10 +625,17 @@ export const taskRepository = {
       [today],
     );
   },
+  async getTask(taskId: string) {
+    return getFirstRow<TaskRecord>(
+      'SELECT * FROM tasks WHERE id = ? AND deleted_at IS NULL LIMIT 1;',
+      [taskId],
+    );
+  },
   async completeTaskOffline(taskId: string, note?: string) {
     const db = await getDatabase();
     const timestamp = nowIso();
-    await db.runAsync(
+    await runStatement(
+      db,
       `UPDATE tasks
        SET status = 'completed',
            completed_at = ?,
@@ -533,12 +646,71 @@ export const taskRepository = {
       [timestamp, note ?? null, timestamp, taskId],
     );
   },
+  /** Mark a task as skipped (not done, no XP) with an optional reason. */
+  async skipTaskOffline(taskId: string, reason?: string | null) {
+    const db = await getDatabase();
+    const timestamp = nowIso();
+    await runStatement(
+      db,
+      `UPDATE tasks
+       SET status = 'skipped',
+           completed_at = NULL,
+           observation_notes = COALESCE(?, observation_notes),
+           sync_status = CASE WHEN sync_status = 'synced' THEN 'pending' ELSE sync_status END,
+           updated_at = ?
+       WHERE id = ?;`,
+      [reason ?? null, timestamp, taskId],
+    );
+  },
+  /** Push a task's due date out by `days` (from its current due date, or today). Returns the new date. */
+  async snoozeTaskOffline(taskId: string, days: number) {
+    const db = await getDatabase();
+    const timestamp = nowIso();
+    const task = await getFirstRow<TaskRecord>(
+      'SELECT * FROM tasks WHERE id = ? LIMIT 1;',
+      [taskId],
+    );
+    const base = task?.due_date ? new Date(task.due_date) : new Date();
+    const next = formatISO(addDays(base, days), { representation: 'date' });
+    await runStatement(
+      db,
+      `UPDATE tasks
+       SET due_date = ?,
+           status = 'pending',
+           sync_status = CASE WHEN sync_status = 'synced' THEN 'pending' ELSE sync_status END,
+           updated_at = ?
+       WHERE id = ?;`,
+      [next, timestamp, taskId],
+    );
+    return next;
+  },
+  /** Revert a just-completed task back to pending (for the undo window). */
+  async undoCompleteOffline(taskId: string) {
+    const db = await getDatabase();
+    const timestamp = nowIso();
+    await runStatement(
+      db,
+      `UPDATE tasks
+       SET status = 'pending',
+           completed_at = NULL,
+           sync_status = CASE WHEN sync_status = 'synced' THEN 'pending' ELSE sync_status END,
+           updated_at = ?
+       WHERE id = ?;`,
+      [timestamp, taskId],
+    );
+  },
 };
 
 export const logRepository = {
   async listLogs() {
     return listRows<LogRecord>(
       'SELECT * FROM logs WHERE deleted_at IS NULL ORDER BY date DESC, updated_at DESC;',
+    );
+  },
+  async listLogsForFarm(farmId: string, limit = 20) {
+    return listRows<LogRecord>(
+      'SELECT * FROM logs WHERE farm_id = ? AND deleted_at IS NULL ORDER BY date DESC, updated_at DESC LIMIT ?;',
+      [farmId, limit],
     );
   },
   async listImagesForLog(logId: string) {
@@ -621,14 +793,63 @@ export const logRepository = {
 
     return { log, images };
   },
+  /** Soft-delete a log and its images (used to roll back a task-completion proof on undo). */
+  async softDeleteLog(logId: string) {
+    const timestamp = nowIso();
+    await withTransaction(async (db) => {
+      await runStatement(db, 'UPDATE logs SET deleted_at = ?, updated_at = ? WHERE id = ?;', [
+        timestamp,
+        timestamp,
+        logId,
+      ]);
+      await runStatement(
+        db,
+        'UPDATE log_images SET deleted_at = ?, updated_at = ? WHERE log_id = ?;',
+        [timestamp, timestamp, logId],
+      );
+    });
+  },
 };
 
 export const recommendationRepository = {
   async listForJourney(journeyId: string) {
     return listRows<RecommendationRecord>(
-      'SELECT * FROM recommendations WHERE journey_id = ? AND deleted_at IS NULL ORDER BY priority DESC, updated_at DESC;',
+      "SELECT * FROM recommendations WHERE journey_id = ? AND deleted_at IS NULL AND status = 'pending' ORDER BY priority DESC, updated_at DESC;",
       [journeyId],
     );
+  },
+  async listPending(limit = 20) {
+    return listRows<RecommendationRecord>(
+      "SELECT * FROM recommendations WHERE deleted_at IS NULL AND status = 'pending' ORDER BY priority DESC, updated_at DESC LIMIT ?;",
+      [limit],
+    );
+  },
+  async dismiss(id: string) {
+    const db = await getDatabase();
+    await db.runAsync(
+      "UPDATE recommendations SET status = 'dismissed', updated_at = ? WHERE id = ?;",
+      [nowIso(), id],
+    );
+  },
+};
+
+const ENGAGEMENT_KEY = 'me';
+
+export const engagementRepository = {
+  async save(summary: EngagementSummary) {
+    const db = await getDatabase();
+    await db.runAsync(
+      'INSERT OR REPLACE INTO engagement (user_id, summary_json, updated_at) VALUES (?, ?, ?);',
+      [ENGAGEMENT_KEY, toJson(summary), nowIso()],
+    );
+  },
+  async get(): Promise<EngagementSummary | null> {
+    const row = await getFirstRow<{ summary_json: string }>(
+      'SELECT summary_json FROM engagement WHERE user_id = ? LIMIT 1;',
+      [ENGAGEMENT_KEY],
+    );
+    if (!row?.summary_json) return null;
+    return parseJson<EngagementSummary | null>(row.summary_json, null);
   },
 };
 
@@ -742,6 +963,7 @@ export const assistantRepository = {
     journey_id?: string | null;
     role: AssistantMessageRecord['role'];
     text: string;
+    image_local_uri?: string | null;
     delivery_status?: AssistantMessageRecord['delivery_status'];
   }) {
     const record: AssistantMessageRecord = {
@@ -750,13 +972,15 @@ export const assistantRepository = {
       journey_id: input.journey_id ?? null,
       role: input.role,
       text: input.text,
+      image_local_uri: input.image_local_uri ?? null,
       delivery_status: input.delivery_status ?? 'local',
       created_at: nowIso(),
     };
 
     const db = await getDatabase();
     await upsertMany(db, 'assistant_messages', [record]);
-    await db.runAsync(
+    await runStatement(
+      db,
       `DELETE FROM assistant_messages
        WHERE id NOT IN (
          SELECT id FROM assistant_messages ORDER BY created_at DESC LIMIT 60
@@ -766,7 +990,7 @@ export const assistantRepository = {
   },
   async clearMessages() {
     const db = await getDatabase();
-    await db.runAsync('DELETE FROM assistant_messages;');
+    await runStatement(db, 'DELETE FROM assistant_messages;');
   },
 };
 
@@ -810,21 +1034,32 @@ export const syncRepository = {
   },
   async markProcessing(jobId: string) {
     const db = await getDatabase();
-    await db.runAsync(
+    await runStatement(
+      db,
       "UPDATE sync_queue SET status = 'processing', attempts = attempts + 1, updated_at = ? WHERE id = ?;",
       [nowIso(), jobId],
     );
   },
   async markFailed(jobId: string, errorMessage: string) {
     const db = await getDatabase();
-    await db.runAsync(
+    await runStatement(
+      db,
       "UPDATE sync_queue SET status = 'failed', last_error = ?, next_retry_at = ?, updated_at = ? WHERE id = ?;",
       [errorMessage, addDays(new Date(), 0).toISOString(), nowIso(), jobId],
     );
   },
   async removeJob(jobId: string) {
     const db = await getDatabase();
-    await db.runAsync('DELETE FROM sync_queue WHERE id = ?;', [jobId]);
+    await runStatement(db, 'DELETE FROM sync_queue WHERE id = ?;', [jobId]);
+  },
+  /** Remove a not-yet-processed job for an entity (used to cancel a queued task completion on undo). */
+  async removeQueuedJob(entityType: string, entityId: string, jobType: string) {
+    const db = await getDatabase();
+    await runStatement(
+      db,
+      "DELETE FROM sync_queue WHERE entity_type = ? AND entity_id = ? AND job_type = ? AND status IN ('queued', 'failed');",
+      [entityType, entityId, jobType],
+    );
   },
   async saveConflict(conflict: SyncConflictRecord) {
     const db = await getDatabase();
@@ -832,7 +1067,8 @@ export const syncRepository = {
   },
   async markEntitySynced(table: string, entityId: string) {
     const db = await getDatabase();
-    await db.runAsync(
+    await runStatement(
+      db,
       `UPDATE ${table} SET sync_status = 'synced', last_synced_at = ?, updated_at = ? WHERE id = ?;`,
       [nowIso(), nowIso(), entityId],
     );
@@ -855,6 +1091,12 @@ export async function replaceBootstrapData(payload: MobileBootstrapPayload) {
     await upsertMany(db, 'recommendations', payload.recommendations);
     await upsertMany(db, 'weather_cache', payload.weather_cache, 'farm_id');
     await upsertMany(db, 'price_snapshots', payload.price_snapshots);
+    if (payload.engagement) {
+      await db.runAsync(
+        'INSERT OR REPLACE INTO engagement (user_id, summary_json, updated_at) VALUES (?, ?, ?);',
+        ['me', toJson(payload.engagement), nowIso()],
+      );
+    }
   });
 }
 
@@ -863,6 +1105,24 @@ export async function saveUserProfile(user: UserProfile) {
     user_id: user.id,
     locale: user.preferred_language,
     updated_at: nowIso(),
+  });
+}
+
+/**
+ * Wipe all per-user local data. Called when a *different* user signs in so one
+ * account never inherits another's farms, journeys, session/onboarding flag, or
+ * engagement (a correctness + privacy fix). Public market data is left intact.
+ */
+export async function clearLocalUserData() {
+  const tables = [
+    'session', 'farms', 'plots', 'journeys', 'stages', 'milestones',
+    'tasks', 'logs', 'log_images', 'recommendations', 'weather_cache',
+    'price_snapshots', 'engagement', 'sync_queue', 'sync_conflicts',
+  ];
+  await withTransaction(async (db) => {
+    for (const table of tables) {
+      await db.runAsync(`DELETE FROM ${table};`);
+    }
   });
 }
 

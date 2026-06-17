@@ -244,3 +244,13 @@ export async function queueTaskCompletionSync(task: TaskRecord) {
   await syncRepository.enqueueJob('task', task.id, 'complete', { task });
   triggerBackgroundFlush();
 }
+
+/** Cancel a still-queued task-completion job (best effort) when the user taps Undo. */
+export async function removeTaskCompletionSync(taskId: string) {
+  await syncRepository.removeQueuedJob('task', taskId, 'complete');
+}
+
+/** Cancel a still-queued log-create job (used to roll back a task-completion proof on undo). */
+export async function removeLogSync(logId: string) {
+  await syncRepository.removeQueuedJob('log', logId, 'create');
+}

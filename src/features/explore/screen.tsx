@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button } from '@/components/core/button';
 import { Pill } from '@/components/core/pill';
 import { cropCatalog } from '@/lib/constants/crops';
 import type { CropCatalogItem } from '@/lib/domain/types';
@@ -155,7 +154,7 @@ function TabContent({ tab, crop }: { tab: ContentTab; crop: CropCatalogItem }) {
           <View style={tc.noticeCard}>
             <Ionicons name="information-circle-outline" size={16} color={theme.colors.info} />
             <Text style={tc.noticeText}>
-              Detailed soil conditions and climate fit data will appear here once you've mapped a farm plot.
+              Detailed soil conditions and climate fit data will appear here once a farm plot is mapped.
             </Text>
           </View>
         </View>
@@ -166,7 +165,7 @@ function TabContent({ tab, crop }: { tab: ContentTab; crop: CropCatalogItem }) {
           <View style={tc.noticeCard}>
             <Ionicons name="flask-outline" size={16} color={theme.colors.warning} />
             <Text style={tc.noticeText}>
-              Fertilizer, seed, and chemical input recommendations are generated once a journey starts. Tap "Start growing" to begin.
+              Fertilizer, seed, and chemical input recommendations are generated once a journey starts. Tap Start growing to begin.
             </Text>
           </View>
         </View>

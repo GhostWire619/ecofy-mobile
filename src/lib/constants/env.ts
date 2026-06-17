@@ -8,6 +8,9 @@ type ExpoExtra = {
   mapboxAccessToken?: string;
   mapboxStyleUrl?: string;
   environmentName?: string;
+  googleWebClientId?: string;
+  googleIosClientId?: string;
+  googleAndroidClientId?: string;
 };
 
 const extra = (Constants.expoConfig?.extra ?? {}) as ExpoExtra;
@@ -26,6 +29,9 @@ export const env = {
   mapboxAccessToken: extra.mapboxAccessToken ?? '',
   mapboxStyleUrl: extra.mapboxStyleUrl ?? 'mapbox://styles/mapbox/outdoors-v12',
   environmentName: extra.environmentName ?? 'local',
+  googleWebClientId: extra.googleWebClientId ?? '',
+  googleIosClientId: extra.googleIosClientId ?? '',
+  googleAndroidClientId: extra.googleAndroidClientId ?? '',
 };
 
 export const envDebug = {
