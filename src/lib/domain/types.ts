@@ -328,6 +328,12 @@ export interface MobileBootstrapPayload {
 }
 
 export interface LiveWeatherResponse {
+  location?: {
+    lat: number;
+    lng: number;
+    name?: string;
+    farm_id?: string;
+  };
   farm?: {
     id: string;
     name: string;
@@ -343,6 +349,7 @@ export interface LiveWeatherResponse {
     precipitation?: number;
     conditions?: string;
     wind_speed?: number;
+    feels_like?: number;
   } | null;
   forecast: {
     date: string;
@@ -351,8 +358,11 @@ export interface LiveWeatherResponse {
     temperature_avg?: number;
     humidity?: number;
     precipitation?: number;
+    precipitation_probability?: number;
+    rainfall_mm?: number;
     conditions?: string;
     wind_speed?: number;
+    wind_speed_max?: number;
     is_forecast?: boolean;
     confidence?: number | null;
   }[];
@@ -594,4 +604,40 @@ export interface PlotAIRecommendationsResponse {
   recommendations: Record<string, { actions: string[]; summary: string }>;
   generated_at: string;
   cached: boolean;
+}
+
+export type SoilNutrientLevel = 'Low' | 'Medium' | 'High';
+
+export interface SoilProfileView {
+  texture_class: string | null;
+  ph: number | null;
+  ph_band: string | null;
+  sand_pct: number | null;
+  silt_pct: number | null;
+  clay_pct: number | null;
+  organic_carbon_pct: number | null;
+  nitrogen_total_g_kg: number | null;
+  phosphorus_ppm: number | null;
+  potassium_ppm: number | null;
+  water_capacity_mm: number | null;
+  n_level: SoilNutrientLevel | null;
+  p_level: SoilNutrientLevel | null;
+  k_level: SoilNutrientLevel | null;
+  source: 'isda' | 'soilgrids' | 'default';
+  confidence: 'high' | 'medium' | 'low';
+  fetched_at: string | null;
+}
+
+export interface SoilWaterStatus {
+  available_mm: number;
+  capacity_mm: number;
+  pct: number;
+  status: 'dry' | 'adequate' | 'wet';
+  computed_at: string;
+}
+
+export interface FarmSoilResponse {
+  plot_id: string | null;
+  profile: SoilProfileView;
+  water_status: SoilWaterStatus | null;
 }

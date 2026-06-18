@@ -1,39 +1,42 @@
 import { Ionicons } from '@expo/vector-icons';
 import { format, parseISO } from 'date-fns';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  ImageBackground,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Path } from 'react-native-svg';
-
 import { mobileApi } from '@/lib/api/mobile';
-import { env } from '@/lib/constants/env';
 import type {
   AIRecommendation,
   FarmHealthSummary,
-  FarmRecord,
-  JourneyRecord,
-  LiveWeatherResponse,
-  LogRecord,
   PlotAIRecommendationsResponse,
   PlotHealthSnapshot,
-  PlotRecord,
   RemoteSensingSummary,
   RemoteSensingTimeSeries,
 } from '@/lib/domain/types';
 import { AddLogSheet } from '@/features/logbook/screen';
+import {
+  loadFarmWorkspaceCore,
+  normalizeFarmHealthSummary,
+} from '@/features/farms/data';
+import {
+  CropHeroCard,
+  HealthRingCard,
+  InlineCalendar,
+  SoilCard,
+} from '@/features/farms/overview-cards';
 import { theme } from '@/lib/theme';
 
-type OverviewMode = 'overview' | 'logs' | 'risks';
+type WorkspaceTab = 'overview' | 'notes' | 'ledger' | 'market' | 'risks';
 
 type AsyncData<T> = {
   data: T | null;
@@ -60,14 +63,6 @@ type RiskCardItem = {
   mitigations: string[];
 };
 
-type WorkspaceCoreData = {
-  farm: FarmRecord;
-  plot: PlotRecord | null;
-  journey: JourneyRecord | null;
-  logs: LogRecord[];
-  weather: LiveWeatherResponse | null;
-};
-
 type WorkspaceLiveData = {
   recommendations: AsyncData<AIRecommendation[]>;
   farmHealth: AsyncData<FarmHealthSummary>;
@@ -77,9 +72,37 @@ type WorkspaceLiveData = {
   ndviTimeseries: AsyncData<RemoteSensingTimeSeries>;
 };
 
+type FarmMarketData = {
+  latestPrice: number | null;
+  latestDate: string | null;
+  trendDirection: 'up' | 'down' | 'stable';
+  trendChange: number | null;
+  region: string | null;
+};
+
 type FarmWorkspaceScreenProps = {
   farmId: string;
   onClose?: () => void;
+};
+
+type EditableFarmField =
+  | 'name'
+  | 'region'
+  | 'size_hectares'
+  | 'soil_type'
+  | 'irrigation_type'
+  | 'crop_name'
+  | 'planting_date'
+  | 'expected_harvest_date';
+
+type FieldEditorConfig = {
+  field: EditableFarmField;
+  label: string;
+  prompt: string;
+  value: string;
+  keyboardType?: 'default' | 'decimal-pad';
+  choices?: { label: string; value: string }[];
+  quickChoices?: { label: string; value: string }[];
 };
 
 function errorMessage(error: unknown) {
@@ -114,6 +137,14 @@ function formatValue(value: number | null | undefined, digits = 0) {
   return value.toFixed(digits);
 }
 
+function formatCurrency(value: number | null | undefined) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '0 TZS';
+  }
+
+  return `${Math.round(value).toLocaleString()} TZS`;
+}
+
 function safeText(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
 }
@@ -126,84 +157,6 @@ function asArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
 }
 
-function riskMeta(level?: string | null) {
-  switch (level?.toLowerCase()) {
-    case 'low':
-    case 'healthy':
-      return { label: 'Healthy', color: '#1f8f54', bg: '#e5f7ec' };
-    case 'moderate':
-    case 'medium':
-      return { label: 'Watch', color: '#b86b00', bg: '#fff1d9' };
-    case 'high':
-    case 'warning':
-      return { label: 'At risk', color: '#d25a14', bg: '#fff0e7' };
-    case 'critical':
-      return { label: 'Critical', color: '#b93821', bg: '#ffe8e2' };
-    default:
-      return { label: 'Stable', color: theme.colors.textMuted, bg: '#f0f1eb' };
-  }
-}
-
-function getActiveJourney(journeys: JourneyRecord[]) {
-  return (
-    journeys.find((journey) => journey.status === 'active') ??
-    journeys.find((journey) => journey.status === 'planned') ??
-    journeys[0] ??
-    null
-  );
-}
-
-function normalizeFarmRecord(rawFarm: FarmRecord): FarmRecord {
-  return {
-    ...rawFarm,
-    name: safeText(rawFarm.name, 'Untitled farm'),
-    region: safeText(rawFarm.region, 'Unknown region'),
-    country: safeText(rawFarm.country, 'Unknown country'),
-    district: safeText(rawFarm.district, ''),
-    formatted_address: safeText(rawFarm.formatted_address, ''),
-    soil_type: safeText(rawFarm.soil_type, ''),
-    size_hectares: safeNumber(rawFarm.size_hectares, 0),
-    latitude: safeNumber(rawFarm.latitude, 0),
-    longitude: safeNumber(rawFarm.longitude, 0),
-    elevation: typeof rawFarm.elevation === 'number' && Number.isFinite(rawFarm.elevation) ? rawFarm.elevation : null,
-    irrigation_type: rawFarm.irrigation_type === 'irrigated' ? 'irrigated' : 'rain-fed',
-  };
-}
-
-function normalizePlotRecord(rawPlot: PlotRecord): PlotRecord {
-  return {
-    ...rawPlot,
-    name: safeText(rawPlot.name, 'Main field'),
-    plot_code: safeText(rawPlot.plot_code) || null,
-    soil_type: safeText(rawPlot.soil_type) || null,
-    field_boundary_json: safeText(rawPlot.field_boundary_json) || null,
-    size_hectares: typeof rawPlot.size_hectares === 'number' && Number.isFinite(rawPlot.size_hectares) ? rawPlot.size_hectares : null,
-    center_latitude: typeof rawPlot.center_latitude === 'number' && Number.isFinite(rawPlot.center_latitude) ? rawPlot.center_latitude : null,
-    center_longitude: typeof rawPlot.center_longitude === 'number' && Number.isFinite(rawPlot.center_longitude) ? rawPlot.center_longitude : null,
-    is_default: rawPlot.is_default === 1 ? 1 : 0,
-  };
-}
-
-function normalizeJourneyRecord(rawJourney: JourneyRecord): JourneyRecord {
-  return {
-    ...rawJourney,
-    crop_name: safeText(rawJourney.crop_name, 'No crop'),
-    common_name: safeText(rawJourney.common_name, safeText(rawJourney.crop_name, 'No crop')),
-    local_name: safeText(rawJourney.local_name, ''),
-    variety: safeText(rawJourney.variety, ''),
-    current_stage: safeText(rawJourney.current_stage, ''),
-    progress_percentage: safeNumber(rawJourney.progress_percentage, 0),
-  };
-}
-
-function normalizeLogRecord(rawLog: LogRecord): LogRecord {
-  return {
-    ...rawLog,
-    operation_type: safeText(rawLog.operation_type, 'Field update'),
-    notes: safeText(rawLog.notes, ''),
-  };
-}
-
 const LOG_OP_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
   Scouting: 'eye-outline',
   Spraying: 'water-outline',
@@ -213,26 +166,6 @@ const LOG_OP_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']
   Tilling: 'construct-outline',
   Harvesting: 'basket-outline',
 };
-
-function buildStaticMapUrl(lat: number, lon: number, sizeHectares: number): string {
-  const token = env.mapboxAccessToken;
-  if (!token || !lat || !lon) return '';
-  const zoom =
-    sizeHectares > 200 ? 12
-    : sizeHectares > 50 ? 13
-    : sizeHectares > 10 ? 14
-    : sizeHectares > 2 ? 15
-    : 16;
-  return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/${lon},${lat},${zoom}/600x300@2x?access_token=${token}`;
-}
-
-function buildHeroDescriptors(coreData: WorkspaceCoreData) {
-  return [
-    safeText(coreData.journey?.crop_name, '').toLowerCase(),
-    safeText(coreData.farm.region, '').toLowerCase(),
-    safeText(coreData.journey?.current_stage, '').toLowerCase(),
-  ].filter(Boolean) as string[];
-}
 
 function toRecommendationView(recommendation: AIRecommendation): RecommendationView {
   return {
@@ -248,61 +181,6 @@ function toRecommendationView(recommendation: AIRecommendation): RecommendationV
         : 'medium',
     source: safeText(recommendation.source, 'system'),
   };
-}
-
-function getWeatherSnapshot(weather: LiveWeatherResponse | null) {
-  if (!weather?.current) {
-    return null;
-  }
-
-  const forecast = asArray(weather.forecast);
-  return {
-    temperature: weather.current.temperature ?? null,
-    humidity: weather.current.humidity ?? weather.summary?.avg_humidity ?? null,
-    windSpeed:
-      weather.current.wind_speed ??
-      forecast.find((entry) => typeof entry.wind_speed === 'number')?.wind_speed ??
-      null,
-    precipitation: weather.current.precipitation ?? weather.summary?.total_rainfall_mm ?? null,
-    conditions: weather.current.conditions ?? null,
-    forecast,
-  };
-}
-
-function buildWeatherNotes(input: {
-  weather: ReturnType<typeof getWeatherSnapshot>;
-  plotHealth: PlotHealthSnapshot | null;
-  plotAi: PlotAIRecommendationsResponse | null;
-}) {
-  const notes: string[] = [];
-
-  if (input.weather?.conditions || typeof input.weather?.precipitation === 'number') {
-    notes.push(
-      (input.weather.precipitation ?? 0) >= 5
-        ? 'Plan around rainfall today and protect any field work windows.'
-        : 'Good conditions for field work. Make the most of today!',
-    );
-  }
-
-  const firstAiSummary = Object.values(input.plotAi?.recommendations ?? {}).find(
-    (recommendation) =>
-      Boolean(recommendation?.summary) ||
-      (Array.isArray(recommendation?.actions) && recommendation.actions.length > 0),
-  );
-
-  if (firstAiSummary?.summary) {
-    notes.push(safeText(firstAiSummary.summary));
-  } else if (input.plotHealth?.actions[0]?.message) {
-    notes.push(safeText(input.plotHealth.actions[0].message));
-  }
-
-  if (input.weather?.forecast[0]?.conditions) {
-    notes.push(
-      `${safeText(input.weather.forecast[0].conditions, 'Weather change')} expected next. Plan field activity around the next weather shift.`,
-    );
-  }
-
-  return Array.from(new Set(notes.map((note) => safeText(note)).filter(Boolean))).slice(0, 3);
 }
 
 function pickPrimaryMessage(input: {
@@ -325,29 +203,16 @@ function pickPrimaryMessage(input: {
   return 'Your field has issues that need quick action. See what to do below.';
 }
 
-function latestNdviValue(
-  latest: RemoteSensingSummary | null,
-  timeseries: RemoteSensingTimeSeries | null,
-) {
-  const lastPoint = [...asArray(timeseries?.series)].reverse().find((point) => typeof point?.value === 'number');
-
-  if (typeof latest?.value === 'number') {
-    return latest.value;
+function trendDirectionLabel(direction: FarmMarketData['trendDirection']) {
+  if (direction === 'up') {
+    return 'Rising';
   }
 
-  if (typeof latest?.mean_value === 'number') {
-    return latest.mean_value;
+  if (direction === 'down') {
+    return 'Falling';
   }
 
-  return lastPoint?.value ?? null;
-}
-
-function latestNdviDate(
-  latest: RemoteSensingSummary | null,
-  timeseries: RemoteSensingTimeSeries | null,
-) {
-  const lastPoint = [...asArray(timeseries?.series)].reverse().find((point) => point?.date);
-  return latest?.image_date ?? lastPoint?.date ?? null;
+  return 'Stable';
 }
 
 function normalizePlotHealthSnapshot(snapshot: PlotHealthSnapshot | null): PlotHealthSnapshot | null {
@@ -398,34 +263,6 @@ function normalizePlotHealthSnapshot(snapshot: PlotHealthSnapshot | null): PlotH
         message: safeText(action?.message),
       }))
       .filter((action) => Boolean(action.message)),
-  };
-}
-
-function normalizeFarmHealthSummary(summary: FarmHealthSummary | null): FarmHealthSummary | null {
-  if (!summary || typeof summary !== 'object') {
-    return null;
-  }
-
-  return {
-    ...summary,
-    farm_name: safeText(summary.farm_name, 'Farm'),
-    overall_risk_score: safeNumber(summary.overall_risk_score, 0),
-    overall_risk_level: summary.overall_risk_level ?? 'LOW',
-    plots_count: safeNumber(summary.plots_count, 0),
-    risk_distribution: {
-      LOW: safeNumber(summary.risk_distribution?.LOW, 0),
-      MODERATE: safeNumber(summary.risk_distribution?.MODERATE, 0),
-      HIGH: safeNumber(summary.risk_distribution?.HIGH, 0),
-      CRITICAL: safeNumber(summary.risk_distribution?.CRITICAL, 0),
-    },
-    plots: asArray(summary.plots).map((plot) => ({
-      plot_id: safeText(plot?.plot_id, ''),
-      plot_name: safeText(plot?.plot_name, 'Field'),
-      risk_score: safeNumber(plot?.risk_score, 0),
-      risk_level: plot?.risk_level ?? 'LOW',
-      crop: safeText(plot?.crop) || null,
-      ndvi: typeof plot?.ndvi === 'number' ? plot.ndvi : null,
-    })),
   };
 }
 
@@ -739,22 +576,6 @@ function buildRiskCards(snapshot: PlotHealthSnapshot | null): RiskCardItem[] {
   return items;
 }
 
-function Badge({
-  label,
-  backgroundColor,
-  color,
-}: {
-  label: string;
-  backgroundColor: string;
-  color: string;
-}) {
-  return (
-    <View style={[styles.badge, { backgroundColor }]}>
-      <Text style={[styles.badgeText, { color }]}>{label}</Text>
-    </View>
-  );
-}
-
 function MetricPill({
   value,
   label,
@@ -770,96 +591,131 @@ function MetricPill({
   );
 }
 
-function NoticeStrip({
-  icon,
-  text,
-  highlighted = false,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  text: string;
-  highlighted?: boolean;
-}) {
-  return (
-    <View style={[styles.noticeStrip, highlighted ? styles.noticeStripHighlight : null]}>
-      <Ionicons
-        name={icon}
-        size={16}
-        color={highlighted ? '#1c8f67' : theme.colors.info}
-        style={styles.noticeIcon}
-      />
-      <Text style={styles.noticeText}>{text}</Text>
-    </View>
-  );
+function dataMissing(value: unknown) {
+  if (value == null) {
+    return true;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim().length === 0 || value.trim().toLowerCase() === 'not set';
+  }
+
+  return false;
 }
 
-function OverviewChart({ series }: { series: RemoteSensingTimeSeries['series'] }) {
-  const points = asArray(series).filter((point) => typeof point?.value === 'number');
+function dateOffset(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
 
-  if (points.length === 0) {
-    return (
-      <View style={styles.ndviEmpty}>
-        <Text style={styles.ndviEmptyText}>No NDVI observations yet.</Text>
-      </View>
-    );
-  }
+function monthOffset(months: number) {
+  const date = new Date();
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
 
-  const width = 300;
-  const height = 150;
-  const padding = 18;
-  let minValue = Math.min(...points.map((point) => point.value ?? 0), 0.15);
-  let maxValue = Math.max(...points.map((point) => point.value ?? 0), 0.85);
-
-  if (maxValue - minValue < 0.12) {
-    minValue = Math.max(0, minValue - 0.06);
-    maxValue = Math.min(1, maxValue + 0.06);
-  }
-
-  const xStep = points.length > 1 ? (width - padding * 2) / (points.length - 1) : 0;
-  const valueRange = maxValue - minValue || 1;
-  const yForValue = (value: number) =>
-    height - padding - ((value - minValue) / valueRange) * (height - padding * 2);
-  const path = points
-    .map((point, index) => {
-      const x = padding + xStep * index;
-      const y = yForValue(point.value ?? minValue);
-      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-    })
-    .join(' ');
-
-  const latestPoint = points[points.length - 1];
-  const latestX = padding + xStep * (points.length - 1);
-  const latestY = yForValue(latestPoint.value ?? minValue);
+function FarmFieldEditor({
+  config,
+  saving,
+  error,
+  onClose,
+  onSave,
+}: {
+  config: FieldEditorConfig;
+  saving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSave: (value: string) => void;
+}) {
+  const [value, setValue] = useState(config.value);
 
   return (
-    <Svg width="100%" height={180} viewBox={`0 0 ${width} ${height}`}>
-      {[0.2, 0.5, 0.8].map((mark) => (
-        <Line
-          key={mark}
-          x1={padding}
-          y1={yForValue(mark)}
-          x2={width - padding}
-          y2={yForValue(mark)}
-          stroke="#d9ddd1"
-          strokeDasharray="5 5"
-          strokeWidth={1}
-        />
-      ))}
-      {points.map((point, index) => {
-        const x = padding + xStep * index;
-        const y = yForValue(point.value ?? minValue);
-        return (
-          <Circle
-            key={`${point.date}-${index}`}
-            cx={x}
-            cy={y}
-            r={index === points.length - 1 ? 4.5 : 3}
-            fill={index === points.length - 1 ? theme.colors.primary : '#7da98b'}
-          />
-        );
-      })}
-      <Path d={path} fill="none" stroke={theme.colors.primary} strokeWidth={3.5} strokeLinecap="round" />
-      <Circle cx={latestX} cy={latestY} r={8} fill="rgba(31, 106, 58, 0.14)" />
-    </Svg>
+    <Modal animationType="slide" transparent visible onRequestClose={onClose}>
+      <View style={styles.editorBackdrop}>
+        <View style={styles.editorSheet}>
+          <View style={styles.editorHandle} />
+          <View style={styles.editorHeader}>
+            <View style={styles.editorHeaderCopy}>
+              <Text style={styles.editorTitle}>{config.label}</Text>
+              <Text style={styles.editorPrompt}>{config.prompt}</Text>
+            </View>
+            <TouchableOpacity accessibilityRole="button" onPress={onClose} style={styles.editorCloseButton}>
+              <Ionicons name="close" size={20} color={theme.colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {config.choices ? (
+            <View style={styles.editorChoiceList}>
+              {config.choices.map((choice) => {
+                const selected = value === choice.value;
+                return (
+                  <TouchableOpacity
+                    key={choice.value}
+                    accessibilityRole="button"
+                    onPress={() => setValue(choice.value)}
+                    style={[styles.editorChoice, selected ? styles.editorChoiceSelected : null]}
+                  >
+                    <Text style={[styles.editorChoiceText, selected ? styles.editorChoiceTextSelected : null]}>
+                      {choice.label}
+                    </Text>
+                    {selected ? <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : config.field.includes('date') ? (
+            <View style={{ gap: 10 }}>
+              <Text style={styles.editorSelectedDate}>
+                {value ? fmtDate(value, 'EEE, MMM d, yyyy') : 'No date selected'}
+              </Text>
+              <InlineCalendar value={value} onChange={setValue} />
+            </View>
+          ) : (
+            <>
+              {config.quickChoices ? (
+                <View style={styles.quickChoiceRow}>
+                  {config.quickChoices.map((choice) => (
+                    <TouchableOpacity
+                      key={choice.value}
+                      accessibilityRole="button"
+                      onPress={() => setValue(choice.value)}
+                      style={[styles.quickChoice, value === choice.value ? styles.quickChoiceSelected : null]}
+                    >
+                      <Text style={[styles.quickChoiceText, value === choice.value ? styles.quickChoiceTextSelected : null]}>
+                        {choice.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+              <TextInput
+                autoFocus={!config.quickChoices}
+                value={value}
+                onChangeText={setValue}
+                keyboardType={config.keyboardType ?? 'default'}
+                placeholder={config.field.includes('date') ? 'YYYY-MM-DD' : `Enter ${config.label.toLowerCase()}`}
+                placeholderTextColor={theme.colors.textMuted}
+                style={styles.editorInput}
+              />
+            </>
+          )}
+
+          {error ? <Text style={styles.editorError}>{error}</Text> : null}
+
+          <TouchableOpacity
+            accessibilityRole="button"
+            disabled={saving}
+            onPress={() => onSave(value)}
+            style={[styles.editorSaveButton, saving ? styles.disabledButton : null]}
+            testID="farm-field-editor-save"
+          >
+            {saving ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="checkmark" size={18} color="#fff" />}
+            <Text style={styles.editorSaveText}>{saving ? 'Saving...' : 'Save changes'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -955,41 +811,16 @@ function RiskActionCard({
 
 export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProps) {
   const queryClient = useQueryClient();
-  const [mode, setMode] = useState<OverviewMode>('overview');
+  const [mode, setMode] = useState<WorkspaceTab>('overview');
   const [selectedRiskPlotId, setSelectedRiskPlotId] = useState<string | null>(null);
   const [showAddLog, setShowAddLog] = useState(false);
+  const [editorConfig, setEditorConfig] = useState<FieldEditorConfig | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   const coreQuery = useQuery({
     queryKey: ['farm-workspace-online-core', farmId],
     enabled: Boolean(farmId),
-    queryFn: async (): Promise<WorkspaceCoreData> => {
-      const farms = asArray<FarmRecord>(await mobileApi.listFarms()).map(normalizeFarmRecord);
-      const farm = farms.find((item) => String(item.id) === String(farmId));
-      if (!farm) {
-        throw new Error('Farm not found.');
-      }
-
-      const [plotsResponse, journeysResponse, weather] = await Promise.all([
-        mobileApi.listFarmPlots(farmId).catch(() => []),
-        mobileApi.listFarmJourneys(farmId).catch(() => []),
-        mobileApi.getWeatherForFarm(farmId).catch(() => null),
-      ]);
-
-      const plots = asArray<PlotRecord>(plotsResponse).map(normalizePlotRecord);
-      const journeys = asArray<JourneyRecord>(journeysResponse).map(normalizeJourneyRecord);
-      const journey = getActiveJourney(journeys);
-      const logs = journey
-        ? asArray<LogRecord>(await mobileApi.listJourneyLogs(farmId, journey.id).catch(() => [])).map(normalizeLogRecord)
-        : [];
-
-      return {
-        farm,
-        plot: plots[0] ?? null,
-        journey,
-        logs,
-        weather,
-      };
-    },
+    queryFn: async () => loadFarmWorkspaceCore(farmId),
   });
 
   const liveQuery = useQuery({
@@ -1031,6 +862,13 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
     },
   });
 
+  const soilQuery = useQuery({
+    queryKey: ['farm-workspace-soil', farmId],
+    enabled: Boolean(farmId && mode === 'overview'),
+    staleTime: 60 * 60 * 1000,
+    queryFn: () => mobileApi.getFarmSoil(farmId),
+  });
+
   const selectedPlotId = selectedRiskPlotId ?? coreQuery.data?.plot?.id ?? null;
   const selectedPlotDetailQuery = useQuery({
     queryKey: ['farm-workspace-risk-detail', farmId, selectedPlotId],
@@ -1043,6 +881,100 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
         ? await capture(mobileApi.getPlotAIRecommendations(farmId, selectedPlotId))
         : { data: null, error: null },
     }),
+  });
+
+  const cropCatalogQuery = useQuery({
+    queryKey: ['farm-workspace-crop-catalog'],
+    enabled: editorConfig?.field === 'crop_name',
+    queryFn: () => mobileApi.fetchCropCatalog(),
+    staleTime: 1000 * 60 * 30,
+  });
+
+  const marketQuery = useQuery({
+    queryKey: ['farm-workspace-market', coreQuery.data?.journey?.crop_id ?? 'none', coreQuery.data?.farm.region ?? 'none'],
+    enabled: Boolean(mode === 'market' && coreQuery.data?.journey?.crop_id),
+    queryFn: async (): Promise<FarmMarketData> => {
+      const cropId = String(coreQuery.data?.journey?.crop_id ?? '');
+      const trendData = await mobileApi.getPriceTrends({
+        crop: cropId,
+        region: coreQuery.data?.farm.region || undefined,
+        interval: 'month',
+      });
+      const points = asArray(trendData?.points).filter((point) => typeof point?.avg_price === 'number');
+      const latestPoint = points[points.length - 1] ?? null;
+      const previousPoint = points[points.length - 2] ?? null;
+      const trendDirection =
+        latestPoint?.avg_price != null && previousPoint?.avg_price != null
+          ? latestPoint.avg_price > previousPoint.avg_price + 1
+            ? 'up'
+            : latestPoint.avg_price < previousPoint.avg_price - 1
+              ? 'down'
+              : 'stable'
+          : 'stable';
+      const trendChange =
+        latestPoint?.avg_price != null && previousPoint?.avg_price
+          ? ((latestPoint.avg_price - previousPoint.avg_price) / previousPoint.avg_price) * 100
+          : null;
+
+      return {
+        latestPrice: latestPoint?.avg_price ?? latestPoint?.moving_avg ?? latestPoint?.high ?? latestPoint?.low ?? null,
+        latestDate: latestPoint?.bucket ?? null,
+        trendDirection,
+        trendChange,
+        region: coreQuery.data?.farm.region ?? null,
+      };
+    },
+  });
+
+  const updateFieldMutation = useMutation({
+    gcTime: 0,
+    mutationFn: async ({ field, value }: { field: EditableFarmField; value: string }) => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        throw new Error('Please enter a value before saving.');
+      }
+
+      if (field === 'planting_date' || field === 'expected_harvest_date') {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+          throw new Error('Use the date format YYYY-MM-DD.');
+        }
+        const journey = coreQuery.data?.journey;
+        if (!journey) {
+          throw new Error('Start a crop journey before setting dates.');
+        }
+        return mobileApi.updateJourney(farmId, journey.id, { [field]: trimmed });
+      }
+
+      if (field === 'crop_name') {
+        const journey = coreQuery.data?.journey;
+        if (journey) {
+          return mobileApi.updateJourney(farmId, journey.id, { crop_name: trimmed });
+        }
+        return mobileApi.createJourney(farmId, {
+          crop_name: trimmed,
+          plot_id: coreQuery.data?.plot?.id,
+        });
+      }
+
+      if (field === 'size_hectares') {
+        const size = Number(trimmed);
+        if (!Number.isFinite(size) || size <= 0) {
+          throw new Error('Enter a valid field size in hectares.');
+        }
+        return mobileApi.updateFarm(farmId, { size_hectares: size });
+      }
+
+      return mobileApi.updateFarm(farmId, { [field]: trimmed });
+    },
+    onSuccess: async () => {
+      setEditorConfig(null);
+      setSaveMessage('Farm details saved.');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['farm-workspace-online-core', farmId] }),
+        queryClient.invalidateQueries({ queryKey: ['farms-online'] }),
+        queryClient.invalidateQueries({ queryKey: ['today-screen'] }),
+      ]);
+    },
   });
 
   const closeScreen = () => {
@@ -1059,15 +991,97 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
     await queryClient.invalidateQueries({ queryKey: ['farm-workspace-online-core', farmId] });
   }
 
+  function openFieldEditor(field: EditableFarmField) {
+    const farm = coreQuery.data?.farm;
+    const journey = coreQuery.data?.journey;
+    if (!farm) {
+      return;
+    }
+
+    const configs: Record<EditableFarmField, FieldEditorConfig> = {
+      name: {
+        field,
+        label: 'Farm name',
+        prompt: 'Use a short name you easily recognise.',
+        value: farm.name,
+      },
+      region: {
+        field,
+        label: 'Region',
+        prompt: 'Which region is this farm in?',
+        value: farm.region,
+      },
+      size_hectares: {
+        field,
+        label: 'Field size',
+        prompt: 'Enter the total size in hectares.',
+        value: farm.size_hectares ? String(farm.size_hectares) : '',
+        keyboardType: 'decimal-pad',
+      },
+      soil_type: {
+        field,
+        label: 'Soil type',
+        prompt: 'Choose the soil that best describes this farm.',
+        value: farm.soil_type ?? '',
+        choices: [
+          { label: 'Loam', value: 'Loam' },
+          { label: 'Clay', value: 'Clay' },
+          { label: 'Sandy', value: 'Sandy' },
+          { label: 'Silt', value: 'Silt' },
+        ],
+      },
+      irrigation_type: {
+        field,
+        label: 'Water source',
+        prompt: 'How does this farm usually receive water?',
+        value: farm.irrigation_type,
+        choices: [
+          { label: 'Rain only', value: 'rain-fed' },
+          { label: 'Irrigation', value: 'irrigated' },
+        ],
+      },
+      crop_name: {
+        field,
+        label: 'Crop',
+        prompt: 'What crop is growing on this farm?',
+        value: journey?.crop_name ?? '',
+      },
+      planting_date: {
+        field,
+        label: 'Planting date',
+        prompt: 'When was this crop planted?',
+        value: journey?.planting_date ?? '',
+        quickChoices: [
+          { label: 'Today', value: dateOffset(0) },
+          { label: '1 week ago', value: dateOffset(-7) },
+          { label: '2 weeks ago', value: dateOffset(-14) },
+        ],
+      },
+      expected_harvest_date: {
+        field,
+        label: 'Expected harvest',
+        prompt: 'When do you expect to harvest?',
+        value: journey?.expected_harvest_date ?? '',
+        quickChoices: [
+          { label: 'In 1 month', value: monthOffset(1) },
+          { label: 'In 3 months', value: monthOffset(3) },
+          { label: 'In 6 months', value: monthOffset(6) },
+        ],
+      },
+    };
+
+    updateFieldMutation.reset();
+    setSaveMessage(null);
+    setEditorConfig(configs[field]);
+  }
+
   const combinedRecommendations = useMemo(
     () => asArray(liveQuery.data?.recommendations.data).map(toRecommendationView),
     [liveQuery.data?.recommendations.data],
   );
 
-  const weather = getWeatherSnapshot(coreQuery.data?.weather ?? null);
   const plotHealth = normalizePlotHealthSnapshot(liveQuery.data?.plotHealth.data ?? null);
   const farmHealth = normalizeFarmHealthSummary(liveQuery.data?.farmHealth.data ?? null);
-  const plotAi = normalizePlotAiRecommendations(liveQuery.data?.plotAi.data ?? null);
   const selectedPlotHealth = normalizePlotHealthSnapshot(
     selectedRiskPlotId
       ? selectedPlotDetailQuery.data?.snapshot.data ?? null
@@ -1078,30 +1092,11 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
       ? selectedPlotDetailQuery.data?.plotAi.data ?? null
       : liveQuery.data?.plotAi.data ?? null,
   );
-  const primaryRisk = riskMeta(
-    farmHealth?.overall_risk_level ?? plotHealth?.risk_level ?? null,
-  );
   const primaryMessage = pickPrimaryMessage({
     plotHealth,
     recommendations: combinedRecommendations,
     hasJourney: Boolean(coreQuery.data?.journey),
   });
-  const weatherNotes = buildWeatherNotes({
-    weather,
-    plotHealth,
-    plotAi,
-  });
-  const ndviValue = latestNdviValue(
-    liveQuery.data?.latestNdvi.data ?? null,
-    liveQuery.data?.ndviTimeseries.data ?? null,
-  );
-  const ndviDate = latestNdviDate(
-    liveQuery.data?.latestNdvi.data ?? null,
-    liveQuery.data?.ndviTimeseries.data ?? null,
-  );
-  const ndviObservations = asArray(liveQuery.data?.ndviTimeseries.data?.series).filter(
-    (point) => typeof point.value === 'number',
-  ).length;
   const monitoringUnavailable = Boolean(
     liveQuery.data &&
       [
@@ -1135,6 +1130,15 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
   const scoutingSignal = buildScoutingSignal(selectedPlotHealth);
   const isAiLoading = selectedRiskPlotId ? selectedPlotDetailQuery.isFetching : liveQuery.isFetching;
   const farmLogs = [...(coreQuery.data?.logs ?? [])].sort((a, b) => b.date.localeCompare(a.date));
+  const ledgerEntries = farmLogs.filter((log) => typeof log.cost === 'number' && !Number.isNaN(log.cost));
+  const totalExpenses = ledgerEntries.reduce((sum, log) => sum + (log.cost ?? 0), 0);
+  const setupChecklist = [
+    { key: 'crop', label: 'Crop selected', done: Boolean(coreQuery.data?.journey?.crop_name) },
+    { key: 'planting', label: 'Planting date set', done: Boolean(coreQuery.data?.journey?.planting_date) },
+    { key: 'boundary', label: 'Field boundary mapped', done: Boolean(coreQuery.data?.plot?.field_boundary_json) },
+    { key: 'journey', label: 'Active journey ready', done: Boolean(coreQuery.data?.journey) },
+  ];
+  const missingSetupItems = setupChecklist.filter((item) => !item.done);
   const logFarmOptions =
     coreQuery.data?.journey && coreQuery.data?.farm
       ? [{ id: String(coreQuery.data.farm.id), name: coreQuery.data.farm.name, journeyId: coreQuery.data.journey.id }]
@@ -1182,12 +1186,39 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
     );
   }
 
-  const heroDescriptors = buildHeroDescriptors(coreQuery.data);
-  const heroMapUrl = buildStaticMapUrl(
-    coreQuery.data.farm.latitude,
-    coreQuery.data.farm.longitude,
-    coreQuery.data.farm.size_hectares ?? 1,
-  );
+  const overviewRows = [
+    { key: 'region', label: 'Location', value: coreQuery.data.farm.region || 'Not set', missing: dataMissing(coreQuery.data.farm.region), editField: 'region' as const },
+    { key: 'field-size', label: 'Farm size', value: `${formatValue(coreQuery.data.farm.size_hectares, 1)} ha`, missing: !coreQuery.data.farm.size_hectares, editField: 'size_hectares' as const },
+    { key: 'soil-type', label: 'Soil', value: coreQuery.data.farm.soil_type || 'Not set', missing: dataMissing(coreQuery.data.farm.soil_type), editField: 'soil_type' as const },
+    { key: 'irrigation', label: 'Water', value: coreQuery.data.farm.irrigation_type === 'irrigated' ? 'Irrigation' : 'Rain only', missing: dataMissing(coreQuery.data.farm.irrigation_type), editField: 'irrigation_type' as const },
+    { key: 'crop', label: 'Crop', value: coreQuery.data.journey?.crop_name ?? 'Not set', missing: dataMissing(coreQuery.data.journey?.crop_name), editField: 'crop_name' as const },
+    { key: 'stage', label: 'Crop stage', value: coreQuery.data.journey?.current_stage || 'Waiting for planting date', missing: false },
+    { key: 'planting', label: 'Planted', value: fmtDate(coreQuery.data.journey?.planting_date), missing: !coreQuery.data.journey?.planting_date, editField: 'planting_date' as const },
+    { key: 'harvest', label: 'Harvest', value: fmtDate(coreQuery.data.journey?.expected_harvest_date), missing: !coreQuery.data.journey?.expected_harvest_date, editField: 'expected_harvest_date' as const },
+    { key: 'boundary', label: 'Farm map', value: coreQuery.data.plot?.field_boundary_json ? 'Boundary ready' : 'Not mapped', missing: !coreQuery.data.plot?.field_boundary_json, mapAction: true },
+  ];
+  const cropChoices = asArray(cropCatalogQuery.data)
+    .map((crop) => {
+      const name =
+        safeText(crop.common_name) ||
+        safeText(crop.name) ||
+        safeText(crop.local_name);
+      return name ? { label: name, value: name } : null;
+    })
+    .filter((choice): choice is { label: string; value: string } => Boolean(choice))
+    .slice(0, 12);
+  const resolvedEditorConfig =
+    editorConfig?.field === 'crop_name'
+      ? {
+          ...editorConfig,
+          choices:
+            cropChoices.length > 0
+              ? cropChoices
+              : editorConfig.value
+                ? [{ label: editorConfig.value, value: editorConfig.value }]
+                : undefined,
+        }
+      : editorConfig;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -1208,91 +1239,84 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
             </TouchableOpacity>
           </View>
 
-          <ImageBackground
-            source={heroMapUrl ? { uri: heroMapUrl } : undefined}
-            style={styles.heroCard}
-            imageStyle={{ borderRadius: 24 }}
-            resizeMode="cover"
-          >
-            <View style={[StyleSheet.absoluteFillObject, styles.heroOverlay]} />
-            <View style={styles.heroGlowOne} />
-            <View style={styles.heroGlowTwo} />
-            <View style={styles.heroBadgeRow}>
-              <Badge label="AI FARM DESK" backgroundColor="rgba(11, 34, 20, 0.36)" color="#dfeadf" />
-              <Badge
-                label={primaryRisk.label === 'Healthy' ? 'ON TRACK' : 'ACTION NEEDED'}
-                backgroundColor="rgba(242, 183, 70, 0.22)"
-                color="#f6de9c"
-              />
-            </View>
-            <Text style={styles.heroTitle}>{coreQuery.data.farm.name}</Text>
-            <View style={styles.heroDescriptorRow}>
-              {heroDescriptors.map((descriptor) => (
-                <Text key={descriptor} style={styles.heroDescriptor}>
-                  {descriptor}
+          <View style={styles.topTabBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRowCompact}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => setMode('overview')}
+                style={[styles.tabChip, mode === 'overview' ? styles.tabChipActive : null]}
+                testID="farm-workspace-tab-overview"
+              >
+                <Ionicons
+                  name="clipboard-outline"
+                  size={13}
+                  color={mode === 'overview' ? '#fff' : theme.colors.textMuted}
+                />
+                <Text style={[styles.tabChipText, mode === 'overview' ? styles.tabChipTextActive : null]}>
+                  Overview
                 </Text>
-              ))}
-            </View>
-            <View style={styles.heroMetaRow}>
-              <View style={styles.heroMetaCard}>
-                <Text style={styles.heroMetaLabel}>PLANTING</Text>
-                <Text style={styles.heroMetaValue}>{fmtDate(coreQuery.data.journey?.planting_date)}</Text>
-              </View>
-              <View style={styles.heroMetaCard}>
-                <Text style={styles.heroMetaLabel}>HARVEST</Text>
-                <Text style={styles.heroMetaValue}>
-                  {fmtDate(coreQuery.data.journey?.expected_harvest_date)}
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => setMode('notes')}
+                style={[styles.tabChip, mode === 'notes' ? styles.tabChipActive : null]}
+                testID="farm-workspace-tab-notes"
+              >
+                <Ionicons
+                  name="journal-outline"
+                  size={13}
+                  color={mode === 'notes' ? '#fff' : theme.colors.textMuted}
+                />
+                <Text style={[styles.tabChipText, mode === 'notes' ? styles.tabChipTextActive : null]}>
+                  Notes
                 </Text>
-              </View>
-            </View>
-          </ImageBackground>
-
-          <View style={styles.segmentedRow}>
-            <TouchableOpacity
-              accessibilityRole="button"
-              onPress={() => setMode('overview')}
-              style={[styles.segmentButton, mode === 'overview' ? styles.segmentButtonActive : null]}
-              testID="farm-workspace-tab-overview"
-            >
-              <Ionicons
-                name="clipboard-outline"
-                size={15}
-                color={mode === 'overview' ? theme.colors.text : theme.colors.textMuted}
-              />
-              <Text style={[styles.segmentButtonText, mode === 'overview' ? styles.segmentButtonTextActive : null]}>
-                Overview
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              accessibilityRole="button"
-              onPress={() => setMode('logs')}
-              style={[styles.segmentButton, mode === 'logs' ? styles.segmentButtonActive : null]}
-              testID="farm-workspace-tab-logs"
-            >
-              <Ionicons
-                name="journal-outline"
-                size={15}
-                color={mode === 'logs' ? theme.colors.text : theme.colors.textMuted}
-              />
-              <Text style={[styles.segmentButtonText, mode === 'logs' ? styles.segmentButtonTextActive : null]}>
-                Logs
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              accessibilityRole="button"
-              onPress={() => setMode('risks')}
-              style={[styles.segmentButton, mode === 'risks' ? styles.segmentButtonActive : null]}
-              testID="farm-workspace-tab-risks"
-            >
-              <Ionicons
-                name="shield-outline"
-                size={15}
-                color={mode === 'risks' ? theme.colors.text : theme.colors.textMuted}
-              />
-              <Text style={[styles.segmentButtonText, mode === 'risks' ? styles.segmentButtonTextActive : null]}>
-                Risks
-              </Text>
-            </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => setMode('ledger')}
+                style={[styles.tabChip, mode === 'ledger' ? styles.tabChipActive : null]}
+                testID="farm-workspace-tab-ledger"
+              >
+                <Ionicons
+                  name="receipt-outline"
+                  size={13}
+                  color={mode === 'ledger' ? '#fff' : theme.colors.textMuted}
+                />
+                <Text style={[styles.tabChipText, mode === 'ledger' ? styles.tabChipTextActive : null]}>
+                  Ledger
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => setMode('market')}
+                style={[styles.tabChip, mode === 'market' ? styles.tabChipActive : null]}
+                testID="farm-workspace-tab-market"
+              >
+                <Ionicons
+                  name="trending-up-outline"
+                  size={13}
+                  color={mode === 'market' ? '#fff' : theme.colors.textMuted}
+                />
+                <Text style={[styles.tabChipText, mode === 'market' ? styles.tabChipTextActive : null]}>
+                  Market
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => setMode('risks')}
+                style={[styles.tabChip, mode === 'risks' ? styles.tabChipActive : null]}
+                testID="farm-workspace-tab-risks"
+              >
+                <Ionicons
+                  name="shield-outline"
+                  size={13}
+                  color={mode === 'risks' ? '#fff' : theme.colors.textMuted}
+                />
+                <Text style={[styles.tabChipText, mode === 'risks' ? styles.tabChipTextActive : null]}>
+                  Risks
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
 
           {!coreQuery.data.journey ? (
@@ -1314,169 +1338,105 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
 
           {mode === 'overview' ? (
             <>
-              <View style={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionTitleRow}>
-                    <Ionicons name="shield-checkmark-outline" size={18} color="#f26b1d" />
-                    <Text style={styles.sectionTitle}>Field Status</Text>
-                  </View>
-                  <Badge
-                    label={primaryRisk.label}
-                    backgroundColor={primaryRisk.bg}
-                    color={primaryRisk.color}
-                  />
-                </View>
-                <Text style={styles.sectionDescription}>{primaryMessage}</Text>
-                <View style={styles.fieldStatusRow}>
-                  <View style={styles.fieldStatusDot} />
-                  <Text style={styles.fieldStatusLabel}>{plotHealth?.plot_name ?? coreQuery.data.plot?.name ?? 'Main Field'}</Text>
-                  <Text style={styles.fieldStatusMeta}>{coreQuery.data.journey?.crop_name ?? 'No crop'}</Text>
-                  <Text style={[styles.fieldStatusMeta, { color: primaryRisk.color }]}>{primaryRisk.label}</Text>
-                </View>
-                <TouchableOpacity accessibilityRole="button" onPress={() => setMode('risks')} style={styles.ctaButton}>
-                  <Text style={styles.ctaButtonText}>View risks & details</Text>
-                  <Ionicons name="arrow-forward" size={16} color={theme.colors.text} />
-                </TouchableOpacity>
-              </View>
+              <CropHeroCard
+                farmName={coreQuery.data.farm.name}
+                cropName={coreQuery.data.journey?.crop_name}
+                variety={coreQuery.data.journey?.variety}
+                sizeHa={coreQuery.data.farm.size_hectares}
+                stage={coreQuery.data.journey?.current_stage}
+                progressPct={coreQuery.data.journey?.progress_percentage}
+                plantingDate={coreQuery.data.journey?.planting_date}
+                harvestDate={coreQuery.data.journey?.expected_harvest_date}
+                onEdit={() => openFieldEditor('name')}
+                onSetPlanting={() => openFieldEditor('planting_date')}
+              />
 
-              <View style={styles.sectionCard}>
-                <View style={styles.sectionTitleRow}>
-                  <Ionicons name="partly-sunny-outline" size={18} color={theme.colors.info} />
-                  <Text style={styles.sectionTitle}>Weather & Your Field</Text>
+              <HealthRingCard
+                snapshot={normalizePlotHealthSnapshot(liveQuery.data?.plotHealth?.data ?? null)}
+                loading={liveQuery.isLoading}
+              />
+
+              <SoilCard
+                soil={soilQuery.data ?? null}
+                loading={soilQuery.isLoading}
+                error={soilQuery.isError}
+              />
+
+              {missingSetupItems.length > 0 ? (
+                <View style={styles.inlineNotice}>
+                  <Ionicons name="alert-circle-outline" size={16} color="#d08b00" />
+                  <Text style={styles.inlineNoticeText}>
+                    {missingSetupItems.length} farm detail{missingSetupItems.length === 1 ? '' : 's'} still need to be completed.
+                  </Text>
                 </View>
-                <View style={styles.metricsRow}>
-                  <MetricPill
-                    value={`${formatValue(weather?.temperature, 1)}°C`}
-                    label={weather?.conditions ?? 'No live weather'}
-                  />
-                  <MetricPill value={`${formatValue(weather?.humidity)}%`} label="Humidity" />
-                  <MetricPill
-                    value={
-                      typeof weather?.windSpeed === 'number'
-                        ? `${Math.round(weather.windSpeed)}`
-                        : `${formatValue(weather?.precipitation)}`
-                    }
-                    label={typeof weather?.windSpeed === 'number' ? 'Wind km/h' : 'Rain mm'}
-                  />
-                </View>
-                <View style={styles.noticeStack}>
-                  {weatherNotes.length > 0 ? (
-                    weatherNotes.map((note, index) => (
-                      <NoticeStrip
-                        key={`${note}-${index}`}
-                        icon={index === 0 ? 'sparkles-outline' : index === 1 ? 'water-outline' : 'rainy-outline'}
-                        text={note}
-                        highlighted={index === 0}
-                      />
-                    ))
-                  ) : (
-                    <NoticeStrip
-                      icon="leaf-outline"
-                      text="Live weather guidance will appear here as soon as the farm API responds."
-                      highlighted
-                    />
-                  )}
-                </View>
-              </View>
+              ) : null}
 
               <View style={styles.sectionCard}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionTitleRow}>
-                    <Ionicons name="leaf-outline" size={18} color={theme.colors.success} />
-                    <Text style={styles.sectionTitle}>NDVI Trend</Text>
+                    <Ionicons name="options-outline" size={16} color={theme.colors.primary} />
+                    <Text style={styles.compactSectionTitle}>Farm details</Text>
                   </View>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    onPress={() => {
-                      void liveQuery.refetch();
-                      void coreQuery.refetch();
-                    }}
-                    style={styles.refreshButton}
-                    testID="farm-ndvi-refresh"
-                  >
-                    <Ionicons name="refresh-outline" size={16} color={theme.colors.text} />
-                    <Text style={styles.refreshButtonText}>
-                      {liveQuery.isFetching || coreQuery.isFetching ? 'Refreshing' : 'Refresh'}
-                    </Text>
-                  </TouchableOpacity>
                 </View>
-                {coreQuery.data.plot?.field_boundary_json ? (
-                  <>
-                    <View style={styles.ndviHeaderRow}>
-                      <Text style={styles.ndviHeading}>90-day NDVI trend</Text>
-                      <Text style={styles.ndviObservationText}>{ndviObservations} observations</Text>
-                    </View>
-                    <View style={styles.chartCard}>
-                      <OverviewChart series={liveQuery.data?.ndviTimeseries.data?.series ?? []} />
-                    </View>
-                    <View style={styles.ndviFooterCard}>
-                      <Text style={styles.ndviFooterDate}>{fmtDate(ndviDate, 'MMM d, yyyy')}</Text>
-                      <Text style={styles.ndviFooterValue}>NDVI: {formatValue(ndviValue, 2)}</Text>
-                    </View>
-                  </>
-                ) : (
-                  <View style={styles.ndviEmpty}>
-                    <Text style={styles.ndviEmptyText}>
-                      Map this farm boundary to unlock NDVI trend updates.
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {coreQuery.data.logs.length > 0 ? (
-                <View style={styles.sectionCard}>
-                  <View style={styles.sectionTitleRow}>
-                    <Ionicons name="journal-outline" size={18} color={theme.colors.primary} />
-                    <Text style={styles.sectionTitle}>Recent Logs</Text>
-                  </View>
-                  <View style={styles.logStack}>
-                    {coreQuery.data.logs.slice(0, 5).map((log) => (
-                      <View key={log.id} style={styles.logCard}>
-                        <View style={styles.logIconWrap}>
-                          <Ionicons
-                            name={LOG_OP_ICONS[log.operation_type] ?? 'document-outline'}
-                            size={18}
-                            color={theme.colors.primary}
-                          />
-                        </View>
-                        <View style={{ flex: 1, gap: 3 }}>
-                          <View style={styles.logCardTop}>
-                            <Text style={styles.logTitle}>{log.operation_type}</Text>
-                            <Text style={styles.logDate}>{fmtDate(log.date)}</Text>
-                          </View>
-                          {log.notes ? (
-                            <Text style={styles.logNotes} numberOfLines={2}>{log.notes}</Text>
-                          ) : null}
-                        </View>
+                <View style={styles.dataList}>
+                  {overviewRows.map((row) => (
+                    <View key={row.key} style={styles.dataRow}>
+                      <Text style={styles.dataLabel}>{row.label}</Text>
+                      <View style={styles.dataValueWrap}>
+                        <Text style={[styles.dataValue, row.missing ? styles.dataValueWarn : null]}>{row.value}</Text>
+                        {'editField' in row && row.editField ? (
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            onPress={() => openFieldEditor(row.editField)}
+                            style={styles.inlineEditButton}
+                            testID={`farm-edit-${row.editField}`}
+                          >
+                            <Text style={styles.inlineEditButtonText}>{row.missing ? 'Set' : 'Edit'}</Text>
+                          </TouchableOpacity>
+                        ) : 'mapAction' in row && row.mapAction ? (
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            onPress={() => router.push(`/farms-map/${farmId}` as never)}
+                            style={styles.inlineEditButton}
+                          >
+                            <Text style={styles.inlineEditButtonText}>Map</Text>
+                          </TouchableOpacity>
+                        ) : null}
                       </View>
-                    ))}
-                  </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+              {saveMessage ? (
+                <View style={styles.savedNotice}>
+                  <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                  <Text style={styles.savedNoticeText}>{saveMessage}</Text>
                 </View>
               ) : null}
             </>
-          ) : mode === 'logs' ? (
+          ) : mode === 'notes' ? (
             <>
               <View style={styles.sectionCard}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionTitleRow}>
                     <Ionicons name="journal-outline" size={18} color={theme.colors.primary} />
-                    <Text style={styles.sectionTitle}>Farm Logs</Text>
+                    <Text style={styles.sectionTitle}>Farm Notes</Text>
                   </View>
                   <TouchableOpacity
                     accessibilityRole="button"
                     disabled={!coreQuery.data.journey}
                     onPress={() => setShowAddLog(true)}
                     style={[styles.refreshButton, !coreQuery.data.journey ? styles.disabledButton : null]}
-                    testID="farm-logs-add"
+                    testID="farm-notes-add"
                   >
                     <Ionicons name="add" size={16} color={theme.colors.text} />
-                    <Text style={styles.refreshButtonText}>Add log</Text>
+                    <Text style={styles.refreshButtonText}>Add note</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.sectionDescription}>
                   {coreQuery.data.journey
-                    ? `${farmLogs.length} field log${farmLogs.length === 1 ? '' : 's'} for ${coreQuery.data.farm.name}.`
-                    : 'Start a crop journey on this farm before adding field logs.'}
+                    ? `${farmLogs.length} note${farmLogs.length === 1 ? '' : 's'} for ${coreQuery.data.farm.name}.`
+                    : 'Start a crop journey on this farm before adding field notes.'}
                 </Text>
               </View>
 
@@ -1515,14 +1475,101 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
                 <View style={styles.sectionCard}>
                   <View style={styles.emptyLogState}>
                     <Ionicons name="journal-outline" size={34} color={theme.colors.textMuted} />
-                    <Text style={styles.emptyLogTitle}>No farm logs yet</Text>
+                    <Text style={styles.emptyLogTitle}>No notes yet</Text>
                     <Text style={styles.emptyLogText}>
-                      Add scouting, spraying, irrigation, or harvest notes for this farm here.
+                      Add scouting, spraying, irrigation, harvest, or visit notes for this farm here.
                     </Text>
                   </View>
                 </View>
               )}
             </>
+          ) : mode === 'ledger' ? (
+            <>
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="receipt-outline" size={18} color={theme.colors.primary} />
+                  <Text style={styles.sectionTitle}>Farm Ledger</Text>
+                </View>
+                <View style={styles.metricsRow}>
+                  <MetricPill value={formatCurrency(totalExpenses)} label="Recorded spend" />
+                  <MetricPill value={`${ledgerEntries.length}`} label="Cost entries" />
+                  <MetricPill value="0 TZS" label="Income tracked" />
+                </View>
+                <Text style={styles.sectionDescription}>
+                  Costs come from farm notes with an attached amount. Sales and income can be added when the backend supports income entries.
+                </Text>
+              </View>
+
+              {ledgerEntries.length > 0 ? (
+                <View style={styles.logStack}>
+                  {ledgerEntries.map((log) => (
+                    <View key={log.id} style={styles.logCard}>
+                      <View style={styles.logIconWrap}>
+                        <Ionicons
+                          name={LOG_OP_ICONS[log.operation_type] ?? 'receipt-outline'}
+                          size={18}
+                          color={theme.colors.primary}
+                        />
+                      </View>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <View style={styles.logCardTop}>
+                          <Text style={styles.logTitle}>{log.operation_type}</Text>
+                          <Text style={styles.logDate}>{fmtDate(log.date)}</Text>
+                        </View>
+                        <Text style={styles.logNotes}>{log.notes || 'Cost entry recorded from field note.'}</Text>
+                        <Text style={styles.ledgerAmount}>{formatCurrency(log.cost)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.sectionCard}>
+                  <View style={styles.emptyLogState}>
+                    <Ionicons name="receipt-outline" size={34} color={theme.colors.textMuted} />
+                    <Text style={styles.emptyLogTitle}>No ledger entries yet</Text>
+                    <Text style={styles.emptyLogText}>
+                      Add a note with cost and it will appear in the ledger for this farm.
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </>
+          ) : mode === 'market' ? (
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="trending-up-outline" size={18} color={theme.colors.primary} />
+                  <Text style={styles.sectionTitle}>Market Outlook</Text>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={() => void marketQuery.refetch()}
+                  style={styles.refreshButton}
+                  testID="farm-market-refresh"
+                >
+                  <Ionicons name="refresh-outline" size={16} color={theme.colors.text} />
+                  <Text style={styles.refreshButtonText}>{marketQuery.isFetching ? 'Refreshing' : 'Refresh'}</Text>
+                </TouchableOpacity>
+              </View>
+              {!coreQuery.data.journey?.crop_id ? (
+                <Text style={styles.sectionDescription}>Set a crop journey first to load market data for this farm.</Text>
+              ) : marketQuery.isLoading ? (
+                <Text style={styles.sectionDescription}>Loading market outlook...</Text>
+              ) : marketQuery.isError ? (
+                <Text style={styles.sectionDescription}>Market data is unavailable right now.</Text>
+              ) : (
+                <>
+                  <View style={styles.metricsRow}>
+                    <MetricPill value={formatCurrency(marketQuery.data?.latestPrice)} label="Latest price" />
+                    <MetricPill value={trendDirectionLabel(marketQuery.data?.trendDirection ?? 'stable')} label="Trend" />
+                    <MetricPill value={marketQuery.data?.trendChange != null ? `${marketQuery.data.trendChange.toFixed(1)}%` : '--'} label="Change" />
+                  </View>
+                  <Text style={styles.sectionDescription}>
+                    {coreQuery.data.journey?.crop_name ?? 'This crop'} in {marketQuery.data?.region ?? coreQuery.data.farm.region} was last updated on {fmtDate(marketQuery.data?.latestDate, 'MMM d, yyyy')}.
+                  </Text>
+                </>
+              )}
+            </View>
           ) : (
             <>
               {selectedRiskPlotId ? (
@@ -1679,6 +1726,16 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
             onSaved={() => void handleLogSaved()}
           />
         ) : null}
+        {resolvedEditorConfig ? (
+          <FarmFieldEditor
+            key={resolvedEditorConfig.field}
+            config={resolvedEditorConfig}
+            saving={updateFieldMutation.isPending}
+            error={updateFieldMutation.error ? errorMessage(updateFieldMutation.error) : null}
+            onClose={() => setEditorConfig(null)}
+            onSave={(value) => updateFieldMutation.mutate({ field: resolvedEditorConfig.field, value })}
+          />
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -1696,10 +1753,10 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 18,
+    paddingHorizontal: 16,
+    paddingTop: 14,
     paddingBottom: 32,
-    gap: 14,
+    gap: 10,
   },
   centerState: {
     flex: 1,
@@ -1729,6 +1786,37 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  topTabBar: {
+    marginTop: -2,
+  },
+  tabRowCompact: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingRight: 6,
+  },
+  tabChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ded8ca',
+    backgroundColor: '#f8f5ed',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+  },
+  tabChipActive: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  tabChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+  },
+  tabChipTextActive: {
+    color: '#fff',
+  },
   screenTitle: {
     fontSize: 24,
     fontWeight: '700',
@@ -1749,6 +1837,111 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 13,
     fontWeight: '600',
+    color: theme.colors.text,
+  },
+  summaryCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dce8df',
+    backgroundColor: '#fbfaf6',
+    padding: 14,
+  },
+  summaryHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  summaryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e8f4ec',
+  },
+  summaryHeaderCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  summarySubtitle: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+  },
+  summaryEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e1ddcf',
+    backgroundColor: '#fffdfa',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  summaryEditText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  summaryMetaInline: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  summaryDescriptor: {
+    color: theme.colors.textMuted,
+    fontSize: 12,
+    textTransform: 'lowercase',
+  },
+  compactSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  inlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#f1dfb2',
+    backgroundColor: '#fff8e8',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  inlineNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#8f6500',
+  },
+  summaryMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  summaryMetaCell: {
+    width: '47%',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e8e2d7',
+    backgroundColor: '#fffdfa',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  summaryMetaLabel: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+  },
+  summaryMetaValue: {
+    fontSize: 16,
+    fontWeight: '700',
     color: theme.colors.text,
   },
   heroCard: {
@@ -1887,12 +2080,12 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
   sectionCard: {
-    borderRadius: 24,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: '#eadfcb',
     backgroundColor: '#fbfaf6',
-    padding: 16,
-    gap: 14,
+    padding: 14,
+    gap: 12,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1906,13 +2099,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionTitle: {
-    fontSize: 23,
+    fontSize: 18,
     fontWeight: '700',
     color: theme.colors.text,
   },
   sectionDescription: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 13,
+    lineHeight: 19,
     color: theme.colors.textMuted,
   },
   fieldStatusRow: {
@@ -2444,6 +2637,206 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textMuted,
     lineHeight: 17,
+  },
+  ledgerAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  dataList: {
+    gap: 12,
+  },
+  dataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#efe9de',
+  },
+  dataLabel: {
+    fontSize: 13,
+    color: theme.colors.textMuted,
+    flex: 1,
+  },
+  dataValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.text,
+    textAlign: 'right',
+  },
+  dataValueWarn: {
+    color: '#d08b00',
+  },
+  dataValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    flex: 1,
+  },
+  inlineEditButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e1ddcf',
+    backgroundColor: '#fffdfa',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  inlineEditButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  savedNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 14,
+    backgroundColor: '#eaf7ef',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  savedNoticeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  editorBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(20, 25, 21, 0.34)',
+  },
+  editorSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: '#fbfaf6',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 32,
+    gap: 16,
+  },
+  editorHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: '#d6d1c5',
+    alignSelf: 'center',
+  },
+  editorHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  editorHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  editorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  editorPrompt: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.textMuted,
+  },
+  editorCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e1ddcf',
+    backgroundColor: '#fffdfa',
+  },
+  editorInput: {
+    minHeight: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#d9d4c8',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    fontSize: 17,
+    color: theme.colors.text,
+  },
+  editorSelectedDate: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.text,
+  },
+  quickChoiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickChoice: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ded8ca',
+    backgroundColor: '#fff',
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+  },
+  quickChoiceSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: '#edf7f0',
+  },
+  quickChoiceText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.textMuted,
+  },
+  quickChoiceTextSelected: {
+    color: theme.colors.primary,
+  },
+  editorError: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: '#c73a28',
+  },
+  editorChoiceList: {
+    gap: 10,
+  },
+  editorChoice: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#ded8ca',
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+  },
+  editorChoiceSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: '#edf7f0',
+  },
+  editorChoiceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  editorChoiceTextSelected: {
+    color: theme.colors.primary,
+  },
+  editorSaveButton: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 18,
+    backgroundColor: theme.colors.primary,
+  },
+  editorSaveText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
   },
   watchlistStack: {
     gap: 10,

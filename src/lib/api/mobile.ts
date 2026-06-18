@@ -9,6 +9,7 @@ import type {
   EngagementSummary,
   FarmRecord,
   FarmHealthSummary,
+  FarmSoilResponse,
   JourneyRecord,
   LogImageRecord,
   LogRecord,
@@ -59,6 +60,90 @@ function unwrapApiData<T>(
 }
 
 type ApiEnvelope<T> = T | { success?: boolean; data?: T };
+
+type BackendWeatherResponse = {
+  location?: LiveWeatherResponse['location'];
+  farm?: LiveWeatherResponse['farm'];
+  current?: LiveWeatherResponse['current'];
+  daily?: {
+    date: string;
+    temperature_min?: number;
+    temperature_max?: number;
+    rainfall_mm?: number;
+    precipitation_probability?: number;
+    wind_speed_max?: number;
+    conditions?: string;
+  }[];
+  forecast?: LiveWeatherResponse['forecast'];
+  summary?: LiveWeatherResponse['summary'];
+};
+
+export function normalizeLiveWeatherResponse(
+  payload: BackendWeatherResponse | LiveWeatherResponse,
+): LiveWeatherResponse {
+  const forecast =
+    'daily' in payload && Array.isArray(payload.daily)
+      ? payload.daily.map((day) => ({
+          date: day.date,
+          temperature_high: day.temperature_max,
+          temperature_low: day.temperature_min,
+          rainfall_mm: day.rainfall_mm,
+          precipitation: day.rainfall_mm,
+          precipitation_probability: day.precipitation_probability,
+          wind_speed_max: day.wind_speed_max,
+          wind_speed: day.wind_speed_max,
+          conditions: day.conditions,
+          is_forecast: true,
+        }))
+      : Array.isArray(payload.forecast)
+        ? payload.forecast
+        : [];
+
+  const temperatures = forecast
+    .flatMap((day) => [day.temperature_high, day.temperature_low])
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+
+  return {
+    location: payload.location,
+    farm: payload.farm,
+    current: payload.current ?? null,
+    forecast,
+    summary: {
+      period_days: forecast.length,
+      avg_temperature:
+        temperatures.length > 0
+          ? temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length
+          : payload.summary?.avg_temperature ?? payload.current?.temperature,
+      total_rainfall_mm:
+        payload.summary?.total_rainfall_mm ??
+        forecast.reduce((sum, day) => sum + (day.rainfall_mm ?? day.precipitation ?? 0), 0),
+      avg_humidity: payload.summary?.avg_humidity ?? payload.current?.humidity,
+    },
+  };
+}
+
+async function fetchBootstrapFallback() {
+  return apiRequest<MobileBootstrapPayload>('/api/mobile/bootstrap', {
+    method: 'GET',
+    auth: true,
+  });
+}
+
+async function withBootstrapFallback<T>(
+  request: () => Promise<T>,
+  selectFromBootstrap: (payload: MobileBootstrapPayload) => T,
+) {
+  try {
+    return await request();
+  } catch (primaryError) {
+    try {
+      const payload = await fetchBootstrapFallback();
+      return selectFromBootstrap(payload);
+    } catch {
+      throw primaryError;
+    }
+  }
+}
 
 export const authApi = {
   async login(email: string, password: string) {
@@ -123,28 +208,84 @@ export const mobileApi = {
     });
   },
   listFarms() {
-    return apiRequest<ApiEnvelope<FarmRecord[]>>('/api/farms', {
-      method: 'GET',
+    return withBootstrapFallback(
+      () =>
+        apiRequest<ApiEnvelope<FarmRecord[]>>('/api/farms', {
+          method: 'GET',
+          auth: true,
+        }).then((payload) => unwrapApiData<FarmRecord[]>(payload) ?? []),
+      (payload) => payload.farms ?? [],
+    );
+  },
+  updateFarm(farmId: string, data: Partial<FarmRecord>) {
+    return apiRequest<ApiEnvelope<FarmRecord>>(`/api/farms/${farmId}`, {
+      method: 'PUT',
       auth: true,
-    }).then((payload) => unwrapApiData<FarmRecord[]>(payload) ?? []);
+      body: JSON.stringify(data),
+    }).then((payload) => unwrapApiData<FarmRecord>(payload));
   },
   listFarmJourneys(farmId: string) {
-    return apiRequest<ApiEnvelope<JourneyRecord[]>>(`/api/farms/${farmId}/journeys`, {
-      method: 'GET',
+    return withBootstrapFallback(
+      () =>
+        apiRequest<ApiEnvelope<JourneyRecord[]>>(`/api/farms/${farmId}/journeys`, {
+          method: 'GET',
+          auth: true,
+        }).then((payload) => unwrapApiData<JourneyRecord[]>(payload) ?? []),
+      (payload) => (payload.journeys ?? []).filter((journey) => String(journey.farm_id) === String(farmId)),
+    );
+  },
+  updateJourney(farmId: string, journeyId: string, data: Partial<JourneyRecord>) {
+    return apiRequest<ApiEnvelope<JourneyRecord>>(`/api/farms/${farmId}/journeys/${journeyId}`, {
+      method: 'PUT',
       auth: true,
-    }).then((payload) => unwrapApiData<JourneyRecord[]>(payload) ?? []);
+      body: JSON.stringify(data),
+    }).then((payload) => unwrapApiData<JourneyRecord>(payload));
+  },
+  createJourney(
+    farmId: string,
+    data: {
+      crop_name: string;
+      plot_id?: string;
+      planted_at?: string;
+    },
+  ) {
+    return apiRequest<ApiEnvelope<JourneyRecord>>(`/api/farms/${farmId}/journeys`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify(data),
+    }).then((payload) => unwrapApiData<JourneyRecord>(payload));
   },
   listFarmPlots(farmId: string) {
-    return apiRequest<ApiEnvelope<PlotRecord[]>>(`/api/farms/${farmId}/plots`, {
-      method: 'GET',
+    return withBootstrapFallback(
+      () =>
+        apiRequest<ApiEnvelope<PlotRecord[]>>(`/api/farms/${farmId}/plots`, {
+          method: 'GET',
+          auth: true,
+        }).then((payload) => unwrapApiData<PlotRecord[]>(payload) ?? []),
+      (payload) => (payload.plots ?? []).filter((plot) => String(plot.farm_id) === String(farmId)),
+    );
+  },
+  updatePlot(farmId: string, plotId: string, data: Partial<PlotRecord>) {
+    return apiRequest<ApiEnvelope<PlotRecord>>(`/api/farms/${farmId}/plots/${plotId}`, {
+      method: 'PUT',
       auth: true,
-    }).then((payload) => unwrapApiData<PlotRecord[]>(payload) ?? []);
+      body: JSON.stringify(data),
+    }).then((payload) => unwrapApiData<PlotRecord>(payload));
   },
   listJourneyLogs(farmId: string, journeyId: string) {
-    return apiRequest<ApiEnvelope<LogRecord[]>>(`/api/farms/${farmId}/journeys/${journeyId}/logs`, {
-      method: 'GET',
-      auth: true,
-    }).then((payload) => unwrapApiData<LogRecord[]>(payload) ?? []);
+    return withBootstrapFallback(
+      () =>
+        apiRequest<ApiEnvelope<LogRecord[]>>(`/api/farms/${farmId}/journeys/${journeyId}/logs`, {
+          method: 'GET',
+          auth: true,
+        }).then((payload) => unwrapApiData<LogRecord[]>(payload) ?? []),
+      (payload) =>
+        (payload.logs ?? []).filter(
+          (log) =>
+            String(log.farm_id) === String(farmId) &&
+            String(log.journey_id ?? '') === String(journeyId),
+        ),
+    );
   },
   registerDevice(payload: {
     installation_id: string;
@@ -247,10 +388,10 @@ export const mobileApi = {
     });
   },
   getWeatherForFarm(farmId: string) {
-    return apiRequest<ApiEnvelope<LiveWeatherResponse>>(`/api/weather/farm/${farmId}`, {
+    return apiRequest<ApiEnvelope<BackendWeatherResponse>>(`/api/weather/farm/${farmId}`, {
       method: 'GET',
       auth: true,
-    }).then((payload) => unwrapApiData<LiveWeatherResponse>(payload));
+    }).then((payload) => normalizeLiveWeatherResponse(unwrapApiData<BackendWeatherResponse>(payload)));
   },
   fetchMarketPrices() {
     return apiRequest<{ items: Record<string, unknown>[] }>('/api/mobile/market/prices', {
@@ -433,6 +574,12 @@ export const mobileApi = {
         auth: true,
       },
     ).then((payload) => unwrapApiData<PlotAIRecommendationsResponse>(payload));
+  },
+  getFarmSoil(farmId: string) {
+    return apiRequest<ApiEnvelope<FarmSoilResponse>>(`/api/farms/${farmId}/soil`, {
+      method: 'GET',
+      auth: true,
+    }).then((payload) => unwrapApiData<FarmSoilResponse>(payload));
   },
   runRemoteSensingAnalysis(farmId: string, payload: RemoteSensingRunRequest) {
     return apiRequest<ApiEnvelope<RemoteSensingRun>>(`/api/remote-sensing/farms/${farmId}/run`, {

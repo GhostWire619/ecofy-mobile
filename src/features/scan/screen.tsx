@@ -10,11 +10,11 @@ import { Screen, Section } from '@/components/layout/screen';
 import { ApiError } from '@/lib/api/client';
 import { mobileApi } from '@/lib/api/mobile';
 import { cropCatalog, getCropCatalogItem } from '@/lib/constants/crops';
-import { journeyRepository, logRepository } from '@/lib/db/repositories';
-import type { DiagnosisResult } from '@/lib/domain/types';
-import { queueLogSync } from '@/lib/sync/engine';
+import { journeyRepository } from '@/lib/db/repositories';
+import type { DiagnosisResult, LogImageRecord, LogRecord } from '@/lib/domain/types';
 import { theme } from '@/lib/theme';
 import { tapHaptic } from '@/lib/utils/haptics';
+import { createId } from '@/lib/utils/id';
 import { compressForUpload } from '@/lib/utils/image';
 
 const SEVERITY_TONE: Record<string, string> = {
@@ -23,6 +23,41 @@ const SEVERITY_TONE: Record<string, string> = {
   low: theme.colors.success,
   unknown: theme.colors.textMuted,
 };
+
+/**
+ * Compose the logbook note from a diagnosis so the saved record keeps the full
+ * "what to do" plan — not just the label. The note detail screen renders
+ * `notes` as plain text, so newlines + bullets survive.
+ */
+function composeScanNote(result: DiagnosisResult): string {
+  const heading = result.detected
+    ? `Crop scan: ${result.name_en ?? result.label ?? 'issue detected'}${
+        result.name_sw ? ` (${result.name_sw})` : ''
+      }`
+    : 'Crop scan: no clear diagnosis';
+
+  const lines: string[] = [heading];
+  if (result.description) lines.push(result.description);
+
+  const actions = (result.recommended_actions ?? []).filter((a) => a.action_en ?? a.name);
+  if (actions.length > 0) {
+    lines.push('', 'What to do:');
+    for (const a of actions) {
+      let line = `• ${a.action_en ?? a.name}`;
+      if (a.cost_tzs_per_ha_min != null) {
+        const max = a.cost_tzs_per_ha_max ?? a.cost_tzs_per_ha_min;
+        line += ` (~${a.cost_tzs_per_ha_min.toLocaleString()}–${max.toLocaleString()} TZS/ha)`;
+      }
+      lines.push(line);
+    }
+  }
+
+  if (result.estimated_control_cost_tzs != null) {
+    lines.push('', `Estimated control cost ~${result.estimated_control_cost_tzs.toLocaleString()} TZS/ha`);
+  }
+
+  return lines.join('\n');
+}
 
 function scanErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -35,12 +70,23 @@ function scanErrorMessage(error: unknown): string {
   return "Couldn't analyze the photo. Check your connection and try again.";
 }
 
+function saveErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 0) return 'No internet connection. Connect and try saving again.';
+    if (error.status >= 500) return "Couldn't save right now — the service is busy. Try again in a moment.";
+    if (error.status === 413) return 'That photo was too large to upload. Try a smaller one.';
+    return error.message;
+  }
+  return "Couldn't save to your logbook. Check your connection and try again.";
+}
+
 export function ScanScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('image/jpeg');
   const [cropName, setCropName] = useState<string | null>(null);
   const [savedToLog, setSavedToLog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const { data: journey } = useQuery({
     queryKey: ['scan-active-journey'],
@@ -87,33 +133,67 @@ export function ScanScreen() {
     setImageUri(compressed.uri);
     setMimeType(compressed.mimeType);
     setSavedToLog(false);
+    setSaveError(null);
     diagnoseMutation.mutate({ uri: compressed.uri, mimeType: compressed.mimeType, cropId: effectiveCrop });
   };
 
   const reset = () => {
     setImageUri(null);
     setSavedToLog(false);
+    setSaveError(null);
     diagnoseMutation.reset();
   };
 
   const saveToLogbook = async () => {
     if (!journey || !result || !imageUri || saving || savedToLog) return;
     setSaving(true);
+    setSaveError(null);
     try {
-      const label = result.detected ? (result.name_en ?? result.label) : 'no clear diagnosis';
-      const { log } = await logRepository.createOfflineLog({
+      const now = new Date().toISOString();
+      const logId = createId();
+      const log: LogRecord = {
+        id: logId,
+        client_mutation_id: createId('mutation'),
         farm_id: journey.farm_id,
-        plot_id: journey.plot_id ?? null,
         journey_id: journey.id,
+        plot_id: journey.plot_id ?? null,
         operation_type: 'scouting',
-        date: new Date().toISOString().slice(0, 10),
-        notes: `Crop scan: ${label}${result.description ? ` — ${result.description}` : ''}`,
-        images: [{ local_uri: imageUri, mime_type: mimeType }],
-      });
-      await queueLogSync(log);
+        date: now.slice(0, 10),
+        cost: null,
+        notes: composeScanNote(result),
+        location_latitude: null,
+        location_longitude: null,
+        snapshot_url: null,
+        updated_at: now,
+        deleted_at: null,
+        sync_status: 'pending',
+        last_synced_at: null,
+      };
+      const images: LogImageRecord[] = [
+        {
+          id: createId(),
+          client_mutation_id: createId('mutation'),
+          updated_at: now,
+          deleted_at: null,
+          sync_status: 'pending',
+          last_synced_at: null,
+          log_id: logId,
+          local_uri: imageUri,
+          remote_url: null,
+          thumbnail_url: null,
+          mime_type: mimeType,
+          width: null,
+          height: null,
+          taken_at: now,
+        },
+      ];
+      // Online-first: upload the photo + persist the log to the server straight
+      // away (same path as the Add Note sheet), instead of writing to the local
+      // DB and queueing a later sync.
+      await mobileApi.syncLog({ log, images });
       setSavedToLog(true);
-    } catch {
-      // best-effort save
+    } catch (err) {
+      setSaveError(saveErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -214,6 +294,8 @@ export function ScanScreen() {
               </Text>
             </TouchableOpacity>
           ) : null}
+
+          {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
 
           <TouchableOpacity style={styles.retakeBtn} onPress={reset} activeOpacity={0.85}>
             <Ionicons name="refresh" size={18} color="#fff" />
@@ -354,6 +436,7 @@ const styles = StyleSheet.create({
   saveBtnDone: { borderColor: theme.colors.success },
   saveBtnText: { color: theme.colors.primary, fontWeight: '800', fontSize: 15 },
   saveBtnTextDone: { color: theme.colors.success },
+  saveError: { fontSize: 13, color: theme.colors.danger, textAlign: 'center' },
 
   retakeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,

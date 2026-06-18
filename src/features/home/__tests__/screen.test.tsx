@@ -10,6 +10,11 @@ const mockMobileApi = {
   listFarms: jest.fn(),
   listFarmJourneys: jest.fn(),
   getWeatherForFarm: jest.fn(),
+  getFarmHealthSummary: jest.fn(),
+};
+const mockFarmRepository = {
+  getSelectedFarmId: jest.fn(),
+  setSelectedFarmId: jest.fn(),
 };
 
 jest.mock('expo-router', () => ({
@@ -18,6 +23,9 @@ jest.mock('expo-router', () => ({
 
 jest.mock('@/lib/api/mobile', () => ({
   mobileApi: mockMobileApi,
+}));
+jest.mock('@/lib/db/repositories', () => ({
+  farmRepository: mockFarmRepository,
 }));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { HomeScreen } = require('@/features/home/screen');
@@ -39,6 +47,8 @@ describe('HomeScreen', () => {
     jest.clearAllMocks();
     onlineManager.setOnline(true);
     focusManager.setFocused(true);
+    mockFarmRepository.getSelectedFarmId.mockResolvedValue(null);
+    mockFarmRepository.setSelectedFarmId.mockResolvedValue(undefined);
 
     mockMobileApi.listFarms.mockResolvedValue([
       {
@@ -92,6 +102,20 @@ describe('HomeScreen', () => {
       forecast: [],
       summary: {},
     });
+    mockMobileApi.getFarmHealthSummary.mockResolvedValue({
+      farm_id: 'farm-1',
+      farm_name: 'Alpha Farm',
+      overall_risk_score: 42,
+      overall_risk_level: 'MODERATE',
+      plots_count: 1,
+      risk_distribution: {
+        LOW: 0,
+        MODERATE: 1,
+        HIGH: 0,
+        CRITICAL: 0,
+      },
+      plots: [],
+    });
   });
 
   it('opens the farm workspace when a farm row is tapped', async () => {
@@ -110,7 +134,7 @@ describe('HomeScreen', () => {
       </SafeAreaProvider>,
     );
 
-    await screen.findByText('Farms');
+    await screen.findByText('Alpha Farm');
     expect(client.getQueryState(['farms-screen'])?.status).toBe('success');
     expect(mockMobileApi.listFarms).toHaveBeenCalledTimes(1);
 
@@ -144,6 +168,7 @@ describe('HomeScreen', () => {
     ]);
     mockMobileApi.listFarmJourneys.mockResolvedValue([]);
     mockMobileApi.getWeatherForFarm.mockResolvedValue(null);
+    mockMobileApi.getFarmHealthSummary.mockResolvedValue(null);
 
     const client = createQueryClient();
 

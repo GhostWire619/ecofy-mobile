@@ -2,24 +2,41 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { useAuth } from '@/lib/auth/provider';
+import { useEngagement } from '@/lib/hooks/use-engagement';
 import { theme } from '@/lib/theme';
 
+function initials(name?: string | null) {
+  if (!name?.trim()) return 'U';
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (first + last).toUpperCase() || 'U';
+}
+
 function HeaderActions() {
+  const { user } = useAuth();
+  const { data: engagement } = useEngagement();
+  const hasAlerts = (engagement?.reward_eligibility?.length ?? 0) > 0;
+
   return (
     <View style={s.headerActions}>
       <Pressable
-        style={s.headerBtn}
-        accessibilityLabel="Open AI assistant"
-        onPress={() => router.push('/assistant')}
+        style={s.bellBtn}
+        hitSlop={6}
+        accessibilityLabel="Notifications"
+        onPress={() => router.push('/notifications')}
       >
-        <Ionicons name="sparkles-outline" size={20} color={theme.colors.text} />
+        <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
+        {hasAlerts ? <View style={s.bellDot} /> : null}
       </Pressable>
       <Pressable
-        style={s.headerBtn}
-        accessibilityLabel="Open settings"
+        style={s.avatar}
+        hitSlop={6}
+        accessibilityLabel="Profile and settings"
         onPress={() => router.push('/settings')}
       >
-        <Ionicons name="settings-outline" size={20} color={theme.colors.text} />
+        <Text style={s.avatarText}>{initials(user?.full_name)}</Text>
       </Pressable>
     </View>
   );
@@ -138,11 +155,25 @@ const s = StyleSheet.create({
     borderTopColor: theme.colors.border + '80',
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  headerActions: { flexDirection: 'row', gap: 4 },
-  headerBtn: {
-    width: 36, height: 36, borderRadius: 18,
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bellBtn: {
+    width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1, borderColor: theme.colors.border,
   },
+  bellDot: {
+    position: 'absolute', top: 8, right: 9,
+    width: 9, height: 9, borderRadius: 5,
+    backgroundColor: theme.colors.danger,
+    borderWidth: 1.5, borderColor: theme.colors.surface,
+  },
+  avatar: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+  },
+  avatarText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   iconWrap: {
     width: 44, height: 28, borderRadius: 999,
     alignItems: 'center', justifyContent: 'center',

@@ -4,19 +4,20 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Button } from '@/components/core/button';
 import { Card } from '@/components/core/card';
+import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { TextField } from '@/components/forms/text-field';
 import { Screen } from '@/components/layout/screen';
 import { useAuth } from '@/lib/auth/provider';
 import { theme } from '@/lib/theme';
 
 export default function RegisterScreen() {
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const [form, setForm] = useState({
     fullName: '',
     email: '',
     password: '',
     phoneNumber: '',
-    location: 'Kenya',
+    location: 'Tanzania',
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,6 +37,20 @@ export default function RegisterScreen() {
       });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onGoogleToken(idToken: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      // Google sign-up and sign-in are the same flow — the backend /auth/google
+      // creates the account on first use, then signs in.
+      await loginWithGoogle(idToken);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Google sign-up failed');
     } finally {
       setLoading(false);
     }
@@ -78,8 +93,14 @@ export default function RegisterScreen() {
           onChangeText={(value) => setForm((current) => ({ ...current, location: value }))}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Button label={loading ? 'Creating account...' : 'Create account'} onPress={() => void submit()} />
-        <Button label="Back to sign in" variant="ghost" onPress={() => router.back()} />
+        <Button label={loading ? 'Creating account...' : 'Create account'} disabled={loading} onPress={() => void submit()} />
+        <GoogleSignInButton
+          label="Sign up with Google"
+          disabled={loading}
+          onToken={(token) => void onGoogleToken(token)}
+          onError={(message) => setError(message)}
+        />
+        <Button label="Back to sign in" variant="ghost" disabled={loading} onPress={() => router.back()} />
       </Card>
     </Screen>
   );

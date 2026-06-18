@@ -21,15 +21,12 @@ import { useTaskCompletion } from '@/lib/hooks/use-task-completion';
 import { useEngagement } from '@/lib/hooks/use-engagement';
 import { theme } from '@/lib/theme';
 
-const STAGE_DOT: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-  completed: { icon: 'checkmark-circle', color: theme.colors.success },
-  active: { icon: 'ellipse', color: theme.colors.accent },
-  upcoming: { icon: 'ellipse-outline', color: theme.colors.disabled },
-};
+type JourneyTab = 'milestones' | 'tasks';
 
 export function JourneyScreen() {
   const { data: engagement } = useEngagement();
   const [celebrating, setCelebrating] = useState<AchievementBadge | null>(null);
+  const [activeTab, setActiveTab] = useState<JourneyTab>('tasks');
 
   const { data, refetch, isRefetching, isLoading } = useQuery({
     queryKey: ['journey-screen'],
@@ -93,10 +90,22 @@ export function JourneyScreen() {
     );
   }
 
-  const { journey, stages, tasks } = data;
+  const { journey, milestones, tasks } = data;
   const pendingTasks = tasks.filter((t) => t.status !== 'completed' && t.status !== 'skipped');
   const doneTasks = tasks.filter((t) => t.status === 'completed');
+  const orderedMilestones = [...milestones].sort((a, b) => a.week_number - b.week_number);
   const atRisk = isStreakAtRisk(engagement);
+
+  // Only surface what's relevant now under "What to do". Future-dated tasks
+  // (e.g. "protect flowering" months out) move to "Coming up" so the app isn't
+  // telling the farmer to act on a stage their crop hasn't reached yet.
+  const horizon = new Date();
+  horizon.setDate(horizon.getDate() + 14);
+  const horizonIso = horizon.toISOString().slice(0, 10);
+  const activeTasks = pendingTasks.filter((t) => !t.due_date || t.due_date <= horizonIso);
+  const upcomingTasks = pendingTasks
+    .filter((t) => t.due_date && t.due_date > horizonIso)
+    .sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? ''));
 
   return (
     <View style={styles.root}>
@@ -148,56 +157,147 @@ export function JourneyScreen() {
         )}
       </Card>
 
-      {/* ── Smart nudges (tick-engine drift + advisories) ── */}
-      <Section>
-        <SmartNudges journeyId={journey.id} />
-      </Section>
+      <View style={styles.journeyTabs}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => setActiveTab('tasks')}
+          style={[styles.journeyTab, activeTab === 'tasks' && styles.journeyTabActive]}
+          testID="journey-tab-tasks"
+        >
+          <Ionicons
+            name="checkbox-outline"
+            size={16}
+            color={activeTab === 'tasks' ? '#fff' : theme.colors.textMuted}
+          />
+          <Text style={[styles.journeyTabText, activeTab === 'tasks' && styles.journeyTabTextActive]}>
+            Tasks
+          </Text>
+          <View style={[styles.journeyTabCount, activeTab === 'tasks' && styles.journeyTabCountActive]}>
+            <Text style={[styles.journeyTabCountText, activeTab === 'tasks' && styles.journeyTabCountTextActive]}>
+              {pendingTasks.length}
+            </Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => setActiveTab('milestones')}
+          style={[styles.journeyTab, activeTab === 'milestones' && styles.journeyTabActive]}
+          testID="journey-tab-milestones"
+        >
+          <Ionicons
+            name="flag-outline"
+            size={16}
+            color={activeTab === 'milestones' ? '#fff' : theme.colors.textMuted}
+          />
+          <Text style={[styles.journeyTabText, activeTab === 'milestones' && styles.journeyTabTextActive]}>
+            Milestones
+          </Text>
+          <View style={[styles.journeyTabCount, activeTab === 'milestones' && styles.journeyTabCountActive]}>
+            <Text style={[styles.journeyTabCountText, activeTab === 'milestones' && styles.journeyTabCountTextActive]}>
+              {orderedMilestones.length}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
 
-      {/* ── Stage timeline (the climb) ── */}
-      <Section>
-        <Text style={styles.sectionTitle}>Your crop's journey</Text>
-        {stages.map((stage, idx) => {
-          const dot = STAGE_DOT[stage.status] ?? STAGE_DOT.upcoming;
-          const isLast = idx === stages.length - 1;
-          return (
-            <View key={stage.id} style={styles.timelineRow}>
-              <View style={styles.timelineGutter}>
-                <Ionicons name={dot.icon} size={22} color={stage.color ?? dot.color} />
-                {!isLast && <View style={styles.timelineLine} />}
-              </View>
-              <View style={[styles.stageCard, stage.status === 'active' && styles.stageCardActive]}>
-                <View style={styles.rowBetween}>
-                  <Text style={styles.cardTitle}>{stage.name.replace(/_/g, ' ')}</Text>
-                  <Pill
-                    label={stage.status.toUpperCase()}
-                    tone={
-                      stage.status === 'completed'
-                        ? 'success'
-                        : stage.status === 'active'
-                          ? 'warning'
-                          : 'neutral'
-                    }
-                  />
-                </View>
-                {stage.description ? <Text style={styles.copy}>{stage.description}</Text> : null}
-                <Text style={styles.copySmall}>Day {stage.start_day}–{stage.end_day}</Text>
-              </View>
-            </View>
-          );
-        })}
-      </Section>
+      {activeTab === 'milestones' ? (
+        <Section>
+        <View style={styles.sectionHeadingRow}>
+          <View style={styles.sectionHeadingIcon}>
+            <Ionicons name="flag-outline" size={18} color={theme.colors.primary} />
+          </View>
+          <View style={styles.sectionHeadingCopy}>
+            <Text style={styles.sectionTitle}>Milestones</Text>
+            <Text style={styles.sectionSubtitle}>Important steps in this crop journey</Text>
+          </View>
+        </View>
 
-      {/* ── Today's tasks ── */}
-      <Section>
-        <Text style={styles.sectionTitle}>
-          What to do {pendingTasks.length > 0 ? `(${pendingTasks.length})` : ''}
-        </Text>
-        {pendingTasks.length === 0 && (
+        {orderedMilestones.length === 0 ? (
           <Card>
-            <Text style={styles.copy}>All caught up. Great work! 🌱</Text>
+            <Text style={styles.copy}>Milestones will appear when the crop plan is ready.</Text>
+          </Card>
+        ) : (
+          orderedMilestones.map((milestone) => {
+            const completed = milestone.status === 'completed';
+            const active = milestone.status === 'in_progress';
+            return (
+              <View
+                key={milestone.id}
+                style={[
+                  styles.milestoneRow,
+                  active ? styles.milestoneRowActive : null,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.milestoneWeek,
+                    completed ? styles.milestoneWeekComplete : null,
+                    active ? styles.milestoneWeekActive : null,
+                  ]}
+                >
+                  {completed ? (
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                  ) : (
+                    <>
+                      <Text style={styles.milestoneWeekLabel}>WEEK</Text>
+                      <Text style={styles.milestoneWeekNumber}>{milestone.week_number}</Text>
+                    </>
+                  )}
+                </View>
+                <View style={styles.milestoneCopy}>
+                  <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+                  {milestone.description ? (
+                    <Text style={styles.copy} numberOfLines={2}>{milestone.description}</Text>
+                  ) : null}
+                  <Text style={styles.copySmall}>
+                    {milestone.start_date
+                      ? new Date(milestone.start_date).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })
+                      : 'Date not set'}
+                    {milestone.end_date
+                      ? ` – ${new Date(milestone.end_date).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })}`
+                      : ''}
+                  </Text>
+                </View>
+                {active ? <Pill label="NOW" tone="warning" /> : null}
+              </View>
+            );
+          })
+        )}
+        </Section>
+      ) : (
+        <>
+        {/* ── Smart nudges (tick-engine drift + advisories) ── */}
+        <Section>
+          <SmartNudges journeyId={journey.id} />
+        </Section>
+
+        {/* ── Tasks ── */}
+        <Section>
+        <View style={styles.sectionHeadingRow}>
+          <View style={styles.sectionHeadingIcon}>
+            <Ionicons name="checkbox-outline" size={18} color={theme.colors.primary} />
+          </View>
+          <View style={styles.sectionHeadingCopy}>
+            <Text style={styles.sectionTitle}>Tasks</Text>
+            <Text style={styles.sectionSubtitle}>Work to do on the farm</Text>
+          </View>
+        </View>
+
+        <Text style={styles.groupTitle}>
+          Now {activeTasks.length > 0 ? `(${activeTasks.length})` : ''}
+        </Text>
+        {activeTasks.length === 0 && (
+          <Card>
+            <Text style={styles.copy}>Nothing to do right now — you&apos;re on track. 🌱</Text>
           </Card>
         )}
-        {pendingTasks.map((task) => (
+        {activeTasks.map((task) => (
           <Swipeable
             key={task.id}
             overshootRight={false}
@@ -254,19 +354,37 @@ export function JourneyScreen() {
           </Card>
           </Swipeable>
         ))}
-      </Section>
 
-      {/* ── Completed (collapsed-ish) ── */}
-      {doneTasks.length > 0 && (
-        <Section>
-          <Text style={styles.sectionTitle}>Completed ({doneTasks.length})</Text>
+        {upcomingTasks.length > 0 && (
+          <View style={styles.taskGroup}>
+          <Text style={styles.groupTitle}>Coming up ({upcomingTasks.length})</Text>
+          {upcomingTasks.map((task) => (
+            <View key={task.id} style={styles.upcomingRow}>
+              <Ionicons name="time-outline" size={16} color={theme.colors.textMuted} />
+              <Text style={styles.upcomingText} numberOfLines={1}>{task.title}</Text>
+              {task.due_date ? (
+                <Text style={styles.upcomingDate}>
+                  {new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+          </View>
+        )}
+
+        {doneTasks.length > 0 && (
+          <View style={styles.taskGroup}>
+          <Text style={styles.groupTitle}>Completed ({doneTasks.length})</Text>
           {doneTasks.map((task) => (
             <View key={task.id} style={styles.doneRow}>
               <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
               <Text style={styles.doneText} numberOfLines={1}>{task.title}</Text>
             </View>
           ))}
+          </View>
+        )}
         </Section>
+        </>
       )}
 
       <AchievementModal badge={celebrating} onClose={() => setCelebrating(null)} />
@@ -325,6 +443,54 @@ const styles = StyleSheet.create({
   yieldText: { fontSize: 14, fontWeight: '700', color: theme.colors.success },
   title: { fontSize: 24, fontWeight: '800', color: theme.colors.text },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  journeyTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 4,
+    borderRadius: theme.radius.pill,
+    backgroundColor: '#ece9df',
+  },
+  journeyTab: {
+    flex: 1,
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 12,
+  },
+  journeyTabActive: {
+    backgroundColor: theme.colors.primary,
+  },
+  journeyTabText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.textMuted,
+  },
+  journeyTabTextActive: {
+    color: '#fff',
+  },
+  journeyTabCount: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ddd9ce',
+    paddingHorizontal: 5,
+  },
+  journeyTabCountActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  journeyTabCountText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: theme.colors.textMuted,
+  },
+  journeyTabCountTextActive: {
+    color: '#fff',
+  },
   switcherBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: theme.colors.overlay },
   switcherSheet: {
     position: 'absolute',
@@ -359,27 +525,91 @@ const styles = StyleSheet.create({
   switcherName: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
   switcherSub: { fontSize: 13, color: theme.colors.textMuted, marginTop: 2 },
   sectionTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text },
+  sectionHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  sectionHeadingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e8f4ec',
+  },
+  sectionHeadingCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textMuted,
+  },
+  groupTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: theme.colors.text,
+    marginTop: 4,
+  },
   cardTitle: { fontSize: 17, fontWeight: '800', color: theme.colors.text, textTransform: 'capitalize' },
   copy: { color: theme.colors.textMuted, lineHeight: 20 },
   copySmall: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
 
-  // timeline
-  timelineRow: { flexDirection: 'row', gap: 12 },
-  timelineGutter: { alignItems: 'center', width: 24 },
-  timelineLine: { flex: 1, width: 2, backgroundColor: theme.colors.border, marginTop: 2 },
-  stageCard: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
+  // milestones
+  milestoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-    gap: 4,
-    marginBottom: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    padding: 12,
   },
-  stageCardActive: { borderColor: theme.colors.accent, borderWidth: 2 },
+  milestoneRowActive: {
+    borderColor: theme.colors.accent,
+    backgroundColor: '#fff9e9',
+  },
+  milestoneWeek: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0eee7',
+  },
+  milestoneWeekActive: {
+    backgroundColor: '#fff0bf',
+  },
+  milestoneWeekComplete: {
+    backgroundColor: theme.colors.success,
+  },
+  milestoneWeekLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: theme.colors.textMuted,
+  },
+  milestoneWeekNumber: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+  milestoneCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  milestoneTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
 
   // tasks
+  taskGroup: {
+    gap: 8,
+    marginTop: 8,
+  },
   xpTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -427,4 +657,7 @@ const styles = StyleSheet.create({
 
   doneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   doneText: { flex: 1, color: theme.colors.textMuted, fontSize: 14 },
+  upcomingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
+  upcomingText: { flex: 1, color: theme.colors.text, fontSize: 14 },
+  upcomingDate: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '600' },
 });

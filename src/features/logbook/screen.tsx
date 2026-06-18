@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileApi } from '@/lib/api/mobile';
 import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord } from '@/lib/domain/types';
 import { createId } from '@/lib/utils/id';
+import { toAbsoluteUrl } from '@/lib/utils/url';
 import { theme } from '@/lib/theme';
 
 const OPERATION_TYPES = [
@@ -44,9 +45,10 @@ type EnrichedLog = LogWithImages & { farmName: string };
 
 /** Best available thumbnail for a note (server thumb → full image → snapshot). */
 function noteThumbUri(log: EnrichedLog): string | null {
-  return (
-    log.images?.[0]?.thumbnail_url || log.images?.[0]?.url || log.snapshot_url || null
-  );
+  const raw =
+    log.images?.[0]?.thumbnail_url || log.images?.[0]?.url || log.snapshot_url || null;
+  // Server image URLs are root-relative (/uploads/...) — resolve to absolute so <Image> can load them.
+  return toAbsoluteUrl(raw) ?? null;
 }
 
 function asArray<T>(value: T[] | null | undefined): T[] {
@@ -203,21 +205,6 @@ export function AddLogSheet({
   return (
     <View style={sheet.overlay}>
       <View style={[sheet.panel, { paddingBottom: insets.bottom + 20, paddingTop: insets.top + 8 }]}>
-        <View style={sheet.shellHeader}>
-          <Text style={sheet.shellTitle}>Notes</Text>
-          <View style={sheet.shellActions}>
-            <View style={sheet.shellIconButton}>
-              <Ionicons name="person-circle-outline" size={18} color={theme.colors.text} />
-            </View>
-            <View style={sheet.shellIconBadge}>
-              <Ionicons name="notifications-outline" size={17} color={theme.colors.text} />
-              <View style={sheet.shellBadge}>
-                <Text style={sheet.shellBadgeText}>9+</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
         <View style={sheet.formHeader}>
           <TouchableOpacity onPress={onClose} style={sheet.backBtn}>
             <Ionicons name="chevron-back" size={18} color={theme.colors.textMuted} />
@@ -405,16 +392,10 @@ export function LogbookScreen() {
     <View style={s.root}>
       <ScrollView
         contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 88 }]}
+        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={[s.pageHeader, { paddingTop: insets.top + 8 }]}>
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text style={s.pageTitle}>Notes</Text>
-            <Text style={s.pageMeta}>{data?.logs.length ?? 0} notes</Text>
-          </View>
-        </View>
-
         {isLoading ? (
           <View style={s.centerState}>
             <ActivityIndicator color={theme.colors.primary} />
@@ -495,23 +476,11 @@ export function LogbookScreen() {
 const s = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f4f0e7',
+    backgroundColor: theme.colors.background,
   },
   content: {
     paddingHorizontal: 20,
-    gap: 16,
-  },
-  pageHeader: {
-    gap: 4,
-  },
-  pageTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: theme.colors.text,
-  },
-  pageMeta: {
-    fontSize: 13,
-    color: theme.colors.textMuted,
+    paddingTop: 8,
   },
   centerState: {
     alignItems: 'center',
@@ -548,13 +517,17 @@ const s = StyleSheet.create({
     color: theme.colors.textMuted,
   },
   logList: {
-    gap: 6,
+    gap: 8,
   },
   noteCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    paddingVertical: 10,
+    padding: 12,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   noteThumb: {
     width: 64,
@@ -586,7 +559,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    backgroundColor: '#fbfaf6',
+    backgroundColor: theme.colors.surface,
     borderRadius: 20,
     padding: 14,
     borderWidth: 1,
@@ -659,10 +632,10 @@ const s = StyleSheet.create({
 });
 
 const sheet = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 50, backgroundColor: '#f7f4ec' },
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 50, backgroundColor: theme.colors.background },
   panel: {
     flex: 1,
-    backgroundColor: '#f4f0e7',
+    backgroundColor: theme.colors.background,
   },
   shellHeader: {
     flexDirection: 'row',
@@ -671,7 +644,7 @@ const sheet = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd7c9',
+    borderBottomColor: theme.colors.border,
   },
   shellTitle: {
     fontSize: 26,
@@ -737,7 +710,7 @@ const sheet = StyleSheet.create({
     justifyContent: 'center',
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#91d4a9',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 18,
   },
   saveBtnDisabled: {
@@ -759,8 +732,8 @@ const sheet = StyleSheet.create({
     height: 42,
     borderRadius: 21,
     borderWidth: 1,
-    borderColor: '#ddd7c9',
-    backgroundColor: '#fbfaf6',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     paddingHorizontal: 14,
   },
   imageActionText: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
@@ -772,7 +745,7 @@ const sheet = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#ddd7c9',
+    borderColor: theme.colors.border,
     backgroundColor: '#ebe4d4',
   },
   photoThumb: {
@@ -795,8 +768,8 @@ const sheet = StyleSheet.create({
     height: 52,
     borderRadius: 26,
     borderWidth: 1,
-    borderColor: '#ddd7c9',
-    backgroundColor: '#fbfaf6',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -812,8 +785,8 @@ const sheet = StyleSheet.create({
   dropdownMenu: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#ddd7c9',
-    backgroundColor: '#fbfaf6',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     overflow: 'hidden',
   },
   dropdownItem: {
@@ -841,7 +814,7 @@ const sheet = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e1ddcf',
-    backgroundColor: '#fbfaf6',
+    backgroundColor: theme.colors.surface,
   },
   pillActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '14' },
   pillText: { fontSize: 13, fontWeight: '600', color: theme.colors.textMuted },
@@ -856,18 +829,18 @@ const sheet = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#ddd7c9',
-    backgroundColor: '#fbfaf6',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
-  opPillActive: { borderColor: '#91d4a9', backgroundColor: '#eaf8ef' },
+  opPillActive: { borderColor: theme.colors.primary, backgroundColor: '#eaf8ef' },
   opPillText: { fontSize: 15, fontWeight: '500', color: theme.colors.textMuted },
   opPillTextActive: { fontSize: 15, fontWeight: '700', color: theme.colors.primary },
 
   textarea: {
     borderWidth: 1,
-    borderColor: '#ddd7c9',
+    borderColor: theme.colors.border,
     borderRadius: 24,
-    backgroundColor: '#fbfaf6',
+    backgroundColor: theme.colors.surface,
     paddingHorizontal: 18,
     paddingVertical: 16,
     fontSize: 15,
@@ -878,9 +851,9 @@ const sheet = StyleSheet.create({
   input: {
     height: 52,
     borderWidth: 1,
-    borderColor: '#ddd7c9',
+    borderColor: theme.colors.border,
     borderRadius: 26,
-    backgroundColor: '#fbfaf6',
+    backgroundColor: theme.colors.surface,
     paddingHorizontal: 18,
     fontSize: 15,
     color: theme.colors.text,

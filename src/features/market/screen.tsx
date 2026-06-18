@@ -544,13 +544,6 @@ export function MarketScreen() {
 
   return (
     <Screen edges={['bottom']} contentContainerStyle={s.content}>
-
-      {/* ── Header ── */}
-      <View style={s.pageHeader}>
-        <Text style={s.pageTitle}>Market Prices</Text>
-        <Text style={s.pageMeta}>Price snapshots for East African commodity markets.</Text>
-      </View>
-
       {/* ── Tabs + crop selector ── */}
       <View style={s.topBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
@@ -782,11 +775,12 @@ export function MarketScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  content: { gap: theme.spacing.lg, padding: theme.spacing.lg },
-
-  pageHeader: { gap: 4 },
-  pageTitle: { fontSize: 24, fontWeight: '800', color: theme.colors.text },
-  pageMeta: { fontSize: 13, color: theme.colors.textMuted, lineHeight: 19 },
+  content: {
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: 8,
+    paddingBottom: theme.spacing.lg,
+  },
 
   // ── Top bar ──
   topBar: { gap: 10 },

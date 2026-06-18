@@ -7,6 +7,7 @@ import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { EmptyState } from '@/components/state/empty-state';
 import { Screen } from '@/components/layout/screen';
 import type { LogRecord } from '@/lib/domain/types';
+import { toAbsoluteUrl } from '@/lib/utils/url';
 import { theme } from '@/lib/theme';
 
 type NoteImage = { url: string; thumbnail_url?: string | null; caption?: string | null };
@@ -66,7 +67,7 @@ export function NoteDetailScreen() {
           {images.map((img, i) => (
             <Image
               key={`${img.url}-${i}`}
-              source={{ uri: img.url }}
+              source={{ uri: toAbsoluteUrl(img.url) }}
               style={images.length > 1 ? styles.imageMulti : styles.imageSingle}
               resizeMode="cover"
             />

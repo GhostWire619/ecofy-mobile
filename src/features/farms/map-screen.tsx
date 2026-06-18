@@ -13,12 +13,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FarmMapCard } from '@/components/map/farm-map-card';
 import { mobileApi } from '@/lib/api/mobile';
 import type {
-  FarmHealthSummary,
-  FarmRecord,
   PlotHealthSnapshot,
-  PlotRecord,
   RemoteSensingSummary,
 } from '@/lib/domain/types';
+import {
+  loadFarmWorkspaceCore,
+  normalizeFarmHealthSummary,
+} from '@/features/farms/data';
 import { loadFarmRemoteSensingOverlay } from '@/lib/maps/monitoring';
 import { theme } from '@/lib/theme';
 
@@ -56,85 +57,8 @@ function safeNumber(value: unknown, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function coerceNumber(value: unknown, fallback = 0) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === 'string' && value.trim().length > 0) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return fallback;
-}
-
-function serializeBoundary(value: unknown) {
-  if (typeof value === 'string' && value.trim().length > 0) {
-    return value;
-  }
-
-  if (value && typeof value === 'object') {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
 function asArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [];
-}
-
-function normalizeFarmRecord(rawFarm: FarmRecord): FarmRecord {
-  const elevation = coerceNumber(rawFarm.elevation, Number.NaN);
-  return {
-    ...rawFarm,
-    name: safeText(rawFarm.name, 'Untitled farm'),
-    region: safeText(rawFarm.region, 'Unknown region'),
-    country: safeText(rawFarm.country, 'Unknown country'),
-    district: safeText(rawFarm.district, ''),
-    formatted_address: safeText(rawFarm.formatted_address, ''),
-    soil_type: safeText(rawFarm.soil_type, ''),
-    size_hectares: coerceNumber(rawFarm.size_hectares, 0),
-    latitude: coerceNumber(rawFarm.latitude, 0),
-    longitude: coerceNumber(rawFarm.longitude, 0),
-    elevation: Number.isFinite(elevation) ? elevation : null,
-    irrigation_type: rawFarm.irrigation_type === 'irrigated' ? 'irrigated' : 'rain-fed',
-  };
-}
-
-function normalizePlotRecord(rawPlot: PlotRecord): PlotRecord {
-  const extraPlot = rawPlot as PlotRecord & {
-    field_boundary?: unknown;
-    boundary?: unknown;
-  };
-
-  return {
-    ...rawPlot,
-    name: safeText(rawPlot.name, 'Main field'),
-    plot_code: safeText(rawPlot.plot_code) || null,
-    soil_type: safeText(rawPlot.soil_type) || null,
-    field_boundary_json:
-      serializeBoundary(rawPlot.field_boundary_json) ??
-      serializeBoundary(extraPlot.field_boundary) ??
-      serializeBoundary(extraPlot.boundary),
-    size_hectares: Number.isFinite(coerceNumber(rawPlot.size_hectares, Number.NaN))
-      ? coerceNumber(rawPlot.size_hectares, Number.NaN)
-      : null,
-    center_latitude: Number.isFinite(coerceNumber(rawPlot.center_latitude, Number.NaN))
-      ? coerceNumber(rawPlot.center_latitude, Number.NaN)
-      : null,
-    center_longitude: Number.isFinite(coerceNumber(rawPlot.center_longitude, Number.NaN))
-      ? coerceNumber(rawPlot.center_longitude, Number.NaN)
-      : null,
-    is_default: rawPlot.is_default === 1 ? 1 : 0,
-  };
 }
 
 function normalizePlotHealthSnapshot(snapshot: PlotHealthSnapshot | null): PlotHealthSnapshot | null {
@@ -185,34 +109,6 @@ function normalizePlotHealthSnapshot(snapshot: PlotHealthSnapshot | null): PlotH
         message: safeText(action?.message),
       }))
       .filter((action) => Boolean(action.message)),
-  };
-}
-
-function normalizeFarmHealthSummary(summary: FarmHealthSummary | null): FarmHealthSummary | null {
-  if (!summary || typeof summary !== 'object') {
-    return null;
-  }
-
-  return {
-    ...summary,
-    farm_name: safeText(summary.farm_name, 'Farm'),
-    overall_risk_score: safeNumber(summary.overall_risk_score, 0),
-    overall_risk_level: summary.overall_risk_level ?? 'LOW',
-    plots_count: safeNumber(summary.plots_count, 0),
-    risk_distribution: {
-      LOW: safeNumber(summary.risk_distribution?.LOW, 0),
-      MODERATE: safeNumber(summary.risk_distribution?.MODERATE, 0),
-      HIGH: safeNumber(summary.risk_distribution?.HIGH, 0),
-      CRITICAL: safeNumber(summary.risk_distribution?.CRITICAL, 0),
-    },
-    plots: asArray(summary.plots).map((plot) => ({
-      plot_id: safeText(plot?.plot_id, ''),
-      plot_name: safeText(plot?.plot_name, 'Field'),
-      risk_score: safeNumber(plot?.risk_score, 0),
-      risk_level: plot?.risk_level ?? 'LOW',
-      crop: safeText(plot?.crop) || null,
-      ndvi: typeof plot?.ndvi === 'number' ? plot.ndvi : null,
-    })),
   };
 }
 
@@ -298,19 +194,7 @@ export function FarmMapScreen({ farmId }: FarmMapScreenProps) {
   const coreQuery = useQuery({
     queryKey: ['farm-map-core', farmId],
     enabled: Boolean(farmId),
-    queryFn: async () => {
-      const farms = asArray<FarmRecord>(await mobileApi.listFarms()).map(normalizeFarmRecord);
-      const farm = farms.find((item) => String(item.id) === String(farmId));
-      if (!farm) {
-        throw new Error('Farm not found.');
-      }
-
-      const plots = asArray<PlotRecord>(await mobileApi.listFarmPlots(farmId).catch(() => [])).map(normalizePlotRecord);
-      return {
-        farm,
-        plot: plots.find((plot) => plot.is_default === 1) ?? plots[0] ?? null,
-      };
-    },
+    queryFn: async () => loadFarmWorkspaceCore(farmId),
   });
 
   const liveQuery = useQuery({

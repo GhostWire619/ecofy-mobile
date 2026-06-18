@@ -167,6 +167,10 @@ export const sessionRepository = {
   },
 };
 
+// Device-level flag (in app_prefs, survives logout, cleared only on reinstall)
+// marking that the first-run intro carousel has been shown.
+export const INTRO_SEEN_KEY = 'intro_seen';
+
 export const prefsRepository = {
   async get(key: string) {
     const row = await getFirstRow<{ value: string }>(
@@ -189,6 +193,7 @@ export const prefsRepository = {
 };
 
 const SELECTED_JOURNEY_KEY = 'selected_journey_id';
+const SELECTED_FARM_KEY = 'selected_farm_id';
 
 export const farmRepository = {
   async listFarms() {
@@ -206,6 +211,12 @@ export const farmRepository = {
     const db = await getDatabase();
     await upsertMany(db, 'farms', [record]);
     return record;
+  },
+  async getSelectedFarmId() {
+    return prefsRepository.get(SELECTED_FARM_KEY);
+  },
+  async setSelectedFarmId(farmId: string | null) {
+    await prefsRepository.set(SELECTED_FARM_KEY, farmId);
   },
   async createLocalFarm(input: {
     name: string;

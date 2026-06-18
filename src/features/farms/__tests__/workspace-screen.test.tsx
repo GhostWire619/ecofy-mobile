@@ -7,20 +7,25 @@ const mockRouter = {
   back: jest.fn(),
 };
 
-const mockMobileApi = {
+  const mockMobileApi = {
   listFarms: jest.fn(),
+  updateFarm: jest.fn(),
+  createJourney: jest.fn(),
   listFarmPlots: jest.fn(),
   listFarmJourneys: jest.fn(),
+  updateJourney: jest.fn(),
+  updatePlot: jest.fn(),
   listJourneyLogs: jest.fn(),
   getWeatherForFarm: jest.fn(),
   getRecommendationsByJourney: jest.fn(),
   getFarmHealthSummary: jest.fn(),
   getPlotHealthSnapshot: jest.fn(),
   getPlotAIRecommendations: jest.fn(),
-  getRemoteSensingLatest: jest.fn(),
-  getRemoteSensingTimeseries: jest.fn(),
-  syncLog: jest.fn(),
-};
+    getRemoteSensingLatest: jest.fn(),
+    getRemoteSensingTimeseries: jest.fn(),
+    getPriceTrends: jest.fn(),
+    syncLog: jest.fn(),
+  };
 
 jest.mock('expo-router', () => ({
   router: mockRouter,
@@ -67,6 +72,7 @@ function createFarm() {
 
 function seedDefaultMocks() {
   mockMobileApi.listFarms.mockResolvedValue([createFarm()]);
+  mockMobileApi.updateFarm.mockResolvedValue(createFarm());
   mockMobileApi.listFarmPlots.mockResolvedValue([
     {
       id: 'plot-1',
@@ -111,6 +117,11 @@ function seedDefaultMocks() {
       actual_yield: null,
     },
   ]);
+  mockMobileApi.updateJourney.mockResolvedValue({
+    id: 'journey-1',
+    farm_id: 'farm-1',
+    planting_date: '2026-03-01',
+  });
   mockMobileApi.listJourneyLogs.mockResolvedValue([
     {
       id: 'log-1',
@@ -257,19 +268,19 @@ describe('FarmWorkspaceScreen', () => {
     seedDefaultMocks();
   });
 
-  it('shows overview by default, opens the farm logs tab, switches to risks, and closes through the modal action', async () => {
+  it('shows overview by default, opens the farm notes tab, switches to risks, and closes through the modal action', async () => {
     const { client, onClose } = renderWorkspace();
 
     await waitFor(() => expect(mockMobileApi.listFarms).toHaveBeenCalledTimes(1));
     expect(client.getQueryState(['farm-workspace-online-core', 'farm-1'])?.status).toBe('success');
 
-    expect(await screen.findByText('Field Status')).toBeTruthy();
-    expect(await screen.findByText('Weather & Your Field')).toBeTruthy();
-    expect(await screen.findByText('NDVI Trend')).toBeTruthy();
+    expect(await screen.findByText('Farm details')).toBeTruthy();
+    expect(await screen.findByText('Planted')).toBeTruthy();
+    expect(await screen.findByText('Farm map')).toBeTruthy();
 
-    fireEvent.press(screen.getByTestId('farm-workspace-tab-logs'));
-    expect(await screen.findByText('Farm Logs')).toBeTruthy();
-    expect(await screen.findByText('1 field log for Alpha Farm.')).toBeTruthy();
+    fireEvent.press(screen.getByTestId('farm-workspace-tab-notes'));
+    expect(await screen.findByText('Farm Notes')).toBeTruthy();
+    expect(await screen.findByText('1 note for Alpha Farm.')).toBeTruthy();
     expect(await screen.findByText('Scouting')).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('farm-workspace-tab-risks'));
@@ -319,16 +330,47 @@ describe('FarmWorkspaceScreen', () => {
         'Live monitoring is unavailable right now. The dashboard is showing what the online farm API returned.',
       ),
     ).toBeTruthy();
-    expect(await screen.findByText('Map this farm boundary to unlock NDVI trend updates.')).toBeTruthy();
+    expect(await screen.findByText('Farm details')).toBeTruthy();
+    expect(await screen.findByText('Farm map')).toBeTruthy();
   });
 
-  it('refreshes the NDVI monitoring workflow from the overview controls', async () => {
+  it('refreshes the risk monitoring workflow from the risks controls', async () => {
     renderWorkspace();
 
-    await screen.findByText('NDVI Trend');
-    fireEvent.press(screen.getByTestId('farm-ndvi-refresh'));
+    await screen.findByText('Farm details');
+    fireEvent.press(screen.getByTestId('farm-workspace-tab-risks'));
+    await screen.findByText('YOUR FIELDS (1)');
+    fireEvent.press(screen.getByTestId('farm-risks-refresh'));
 
-    await waitFor(() => expect(mockMobileApi.getRemoteSensingLatest).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockMobileApi.getFarmHealthSummary).toHaveBeenCalledTimes(2));
+  });
+
+  it('saves farm details through the backend update route', async () => {
+    renderWorkspace();
+
+    await screen.findByText('Farm details');
+    fireEvent.press(screen.getByTestId('farm-edit-name'));
+    fireEvent.changeText(screen.getByDisplayValue('Alpha Farm'), 'Home Farm');
+    fireEvent.press(screen.getByTestId('farm-field-editor-save'));
+
+    await waitFor(() =>
+      expect(mockMobileApi.updateFarm).toHaveBeenCalledWith('farm-1', { name: 'Home Farm' }),
+    );
+  });
+
+  it('saves the planting date through the journey backend route', async () => {
+    renderWorkspace();
+
+    await screen.findByText('Farm details');
+    fireEvent.press(screen.getByTestId('farm-edit-planting_date'));
+    fireEvent.changeText(screen.getByDisplayValue('2026-03-01'), '2026-03-08');
+    fireEvent.press(screen.getByTestId('farm-field-editor-save'));
+
+    await waitFor(() =>
+      expect(mockMobileApi.updateJourney).toHaveBeenCalledWith('farm-1', 'journey-1', {
+        planting_date: '2026-03-08',
+      }),
+    );
   });
 
   it('stays rendered when live monitoring payloads are partial or malformed', async () => {
@@ -386,8 +428,8 @@ describe('FarmWorkspaceScreen', () => {
 
     renderWorkspace();
 
-    expect(await screen.findByText('Field Status')).toBeTruthy();
-    expect(await screen.findByText('Main Field')).toBeTruthy();
-    expect(await screen.findByText('No details available yet.')).toBeTruthy();
+    expect(await screen.findByText('Farm details')).toBeTruthy();
+    expect(await screen.findByText('Planted')).toBeTruthy();
+    expect(await screen.findByText('Vegetative Growth')).toBeTruthy();
   });
 });

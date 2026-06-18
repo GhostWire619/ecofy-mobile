@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -15,7 +15,9 @@ import {
 
 import { Screen } from '@/components/layout/screen';
 import { mobileApi } from '@/lib/api/mobile';
-import type { FarmRecord, JourneyRecord, WeatherCacheRecord } from '@/lib/domain/types';
+import { farmRepository } from '@/lib/db/repositories';
+import type { FarmHealthSummary, FarmRecord, JourneyRecord, WeatherCacheRecord } from '@/lib/domain/types';
+import { normalizeFarmHealthSummary, normalizeFarmRecord, normalizeJourneyRecord } from '@/features/farms/data';
 import { theme } from '@/lib/theme';
 
 // ─── Risk helpers ─────────────────────────────────────────────────────────────
@@ -30,9 +32,14 @@ const RISK: Record<RiskLevel, { label: string; color: string; dot: string }> = {
   none:     { label: 'No journey',         color: theme.colors.textMuted, dot: theme.colors.textMuted },
 };
 
-function deriveRisk(journey?: JourneyRecord | null): RiskLevel {
-  if (!journey) return 'none';
-  const p = journey.progress_percentage;
+function deriveRisk(input: { journey?: JourneyRecord | null; health?: FarmHealthSummary | null }): RiskLevel {
+  const level = input.health?.overall_risk_level?.toLowerCase();
+  if (level === 'low') return 'low';
+  if (level === 'moderate') return 'moderate';
+  if (level === 'high') return 'high';
+  if (level === 'critical') return 'critical';
+  if (!input.journey) return 'none';
+  const p = input.journey.progress_percentage;
   if (p >= 70) return 'low';
   if (p >= 40) return 'moderate';
   if (p >= 10) return 'high';
@@ -47,42 +54,17 @@ function safeNumber(value: unknown, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function normalizeFarmRecord(rawFarm: FarmRecord): FarmRecord {
-  return {
-    ...rawFarm,
-    name: safeText(rawFarm.name, 'Untitled farm'),
-    region: safeText(rawFarm.region, 'Unknown region'),
-    country: safeText(rawFarm.country, 'Unknown country'),
-    district: safeText(rawFarm.district, ''),
-    formatted_address: safeText(rawFarm.formatted_address, ''),
-    soil_type: safeText(rawFarm.soil_type, ''),
-    size_hectares: safeNumber(rawFarm.size_hectares, 0),
-    latitude: safeNumber(rawFarm.latitude, 0),
-    longitude: safeNumber(rawFarm.longitude, 0),
-    elevation: typeof rawFarm.elevation === 'number' && Number.isFinite(rawFarm.elevation) ? rawFarm.elevation : null,
-    irrigation_type: rawFarm.irrigation_type === 'irrigated' ? 'irrigated' : 'rain-fed',
-  };
-}
-
-function normalizeJourneyRecord(rawJourney: JourneyRecord): JourneyRecord {
-  return {
-    ...rawJourney,
-    crop_name: safeText(rawJourney.crop_name, 'No crop'),
-    common_name: safeText(rawJourney.common_name, safeText(rawJourney.crop_name, 'No crop')),
-    local_name: safeText(rawJourney.local_name, ''),
-    variety: safeText(rawJourney.variety, ''),
-    current_stage: safeText(rawJourney.current_stage, ''),
-    progress_percentage: safeNumber(rawJourney.progress_percentage, 0),
-  };
-}
-
 // ─── Farm action sheet ────────────────────────────────────────────────────────
 
 function FarmActionSheet({
   farm,
+  isActive,
+  onSetActiveFarm,
   onClose,
 }: {
   farm: FarmRecord;
+  isActive: boolean;
+  onSetActiveFarm: (farmId: string) => void;
   onClose: () => void;
 }) {
   const actions: {
@@ -102,6 +84,12 @@ function FarmActionSheet({
       label: 'View on map',
       testID: 'farm-action-view-map',
       onPress: () => { onClose(); router.push(`/farms-map/${farm.id}` as any); },
+    },
+    {
+      icon: isActive ? 'checkmark-circle-outline' : 'radio-button-on-outline',
+      label: isActive ? 'Active farm' : 'Set as active farm',
+      testID: 'farm-action-set-active',
+      onPress: () => { onClose(); onSetActiveFarm(String(farm.id)); },
     },
     {
       icon: 'sparkles-outline',
@@ -144,13 +132,17 @@ function FarmCard({
   journey,
   weather,
   onMenuPress,
+  healthSummary,
+  isActive,
 }: {
   farm: FarmRecord;
   journey?: JourneyRecord | null;
   weather?: WeatherCacheRecord | null;
+  healthSummary?: FarmHealthSummary | null;
   onMenuPress: () => void;
+  isActive: boolean;
 }) {
-  const risk = deriveRisk(journey);
+  const risk = deriveRisk({ journey, health: healthSummary });
   const { label: riskLabel, color: riskColor, dot: riskDot } = RISK[risk];
 
   const location = [farm.district, farm.region, farm.country].filter(Boolean).join(', ') || 'Location not set';
@@ -165,11 +157,22 @@ function FarmCard({
   })();
 
   return (
-    <TouchableOpacity style={s.card} activeOpacity={0.75} onPress={() => router.push(`/farms/${farm.id}` as any)}>
+    <TouchableOpacity
+      style={[s.card, isActive && s.cardActive]}
+      activeOpacity={0.75}
+      onPress={() => router.push(`/farms/${farm.id}` as any)}
+    >
       {/* Top row */}
       <View style={s.cardTop}>
         <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
-          <Text style={s.farmName} numberOfLines={1}>{farm.name}</Text>
+          <View style={s.farmTitleRow}>
+            <Text style={s.farmName} numberOfLines={1}>{farm.name}</Text>
+            {isActive ? (
+              <View style={s.activeFarmBadge}>
+                <Text style={s.activeFarmBadgeText}>Active farm</Text>
+              </View>
+            ) : null}
+          </View>
           <View style={s.locationRow}>
             <Ionicons name="location-outline" size={12} color={theme.colors.textMuted} />
             <Text style={s.locationText} numberOfLines={2}>{location}</Text>
@@ -252,21 +255,29 @@ function FarmsEmpty() {
 export function HomeScreen() {
   const [search, setSearch] = useState('');
   const [menuFarm, setMenuFarm] = useState<FarmRecord | null>(null);
+  const queryClient = useQueryClient();
+
+  const activeFarmQuery = useQuery({
+    queryKey: ['active-farm-selection'],
+    queryFn: () => farmRepository.getSelectedFarmId(),
+  });
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['farms-screen'],
     queryFn: async () => {
+      // Offline-first: read farms + journeys from the local DB (the source of
+      // truth from the backend so the Farms tab matches the farm workspace and map.
       const farms = (await mobileApi.listFarms()).map(normalizeFarmRecord);
-      const journeysByFarm = await Promise.all(
-        farms.map(async (farm) => {
-          const journeys = await mobileApi
-            .listFarmJourneys(farm.id)
-            .then((items) => items.map(normalizeJourneyRecord))
-            .catch(() => []);
-          return [farm.id, journeys] as const;
-        }),
+      const journeyEntries = await Promise.all(
+        farms.map(async (farm) => [
+          farm.id,
+          (await mobileApi.listFarmJourneys(String(farm.id)).catch(() => [])).map(normalizeJourneyRecord),
+        ] as const),
       );
-      const weatherEntries = await Promise.all(
+      const journeys = journeyEntries.flatMap(([, farmJourneys]) => farmJourneys);
+
+      const [weatherEntries, healthEntries] = await Promise.all([
+        Promise.all(
         farms.map(async (farm) => {
           const weather = await mobileApi.getWeatherForFarm(farm.id).catch(() => null);
           return [
@@ -280,26 +291,44 @@ export function HomeScreen() {
               : null,
           ] as const;
         }),
-      );
+        ),
+        Promise.all(
+          farms.map(async (farm) => [
+            farm.id,
+            normalizeFarmHealthSummary(await mobileApi.getFarmHealthSummary(farm.id).catch(() => null)),
+          ] as const),
+        ),
+      ]);
 
       const weatherMap: Record<string, WeatherCacheRecord | null> = {};
       for (const [farmId, weather] of weatherEntries) {
         weatherMap[farmId] = weather;
       }
 
-      return {
-        farms,
-        journeys: journeysByFarm.flatMap(([, journeys]) => journeys),
-        weatherMap,
-      };
+      const healthMap: Record<string, FarmHealthSummary | null> = {};
+      for (const [farmId, health] of healthEntries) {
+        healthMap[farmId] = health;
+      }
+
+      return { farms, journeys, weatherMap, healthMap };
     },
   });
 
   const farms = data?.farms ?? [];
   const journeys = data?.journeys ?? [];
+  const activeFarmId = activeFarmQuery.data ?? null;
 
   function journeyForFarm(farmId: string) {
     return journeys.find((j) => j.farm_id === farmId && (j.status === 'active' || j.status === 'planned')) ?? null;
+  }
+
+  async function handleSetActiveFarm(farmId: string) {
+    await farmRepository.setSelectedFarmId(farmId);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['active-farm-selection'] }),
+      queryClient.invalidateQueries({ queryKey: ['today-screen'] }),
+      queryClient.invalidateQueries({ queryKey: ['journey-screen'] }),
+    ]);
   }
 
   const filtered = farms.filter((f) => {
@@ -316,16 +345,13 @@ export function HomeScreen() {
   return (
     <Screen edges={['bottom']} contentContainerStyle={s.content}>
 
-      {/* ── Header ── */}
-      <View style={s.header}>
-        <View style={s.headerLeft}>
-          <Text style={s.pageTitle}>Farms</Text>
-          <Text style={s.pageSubtitle}>
-            {isLoading
-              ? 'Loading farm workspaces...'
-              : `${farms.length} farm${farms.length !== 1 ? 's' : ''} ready${search && filtered.length !== farms.length ? ` • ${filtered.length} shown` : ''}`}
-          </Text>
-        </View>
+      {/* ── Farm count + primary action ── */}
+      <View style={s.utilityRow}>
+        <Text style={s.pageSubtitle}>
+          {isLoading
+            ? 'Loading farms...'
+            : `${farms.length} farm${farms.length !== 1 ? 's' : ''}${search && filtered.length !== farms.length ? ` · ${filtered.length} shown` : ''}`}
+        </Text>
         <TouchableOpacity style={s.addBtn} onPress={() => router.push('/farms/new')} activeOpacity={0.8}>
           <Ionicons name="add" size={18} color="#fff" />
           <Text style={s.addBtnText}>Add farm</Text>
@@ -367,6 +393,8 @@ export function HomeScreen() {
             farm={farm}
             journey={journeyForFarm(farm.id)}
             weather={data?.weatherMap[farm.id]}
+            healthSummary={data?.healthMap[farm.id]}
+            isActive={String(activeFarmId) === String(farm.id)}
             onMenuPress={() => setMenuFarm(farm)}
           />
         ))
@@ -382,6 +410,8 @@ export function HomeScreen() {
       {menuFarm && (
         <FarmActionSheet
           farm={menuFarm}
+          isActive={String(activeFarmId) === String(menuFarm.id)}
+          onSetActiveFarm={(farmId) => void handleSetActiveFarm(farmId)}
           onClose={() => setMenuFarm(null)}
         />
       )}
@@ -393,12 +423,15 @@ export function HomeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  content: { gap: theme.spacing.lg, padding: theme.spacing.lg },
+  content: {
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: 8,
+    paddingBottom: theme.spacing.lg,
+  },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  headerLeft: { flex: 1, gap: 2 },
-  pageTitle: { fontSize: 24, fontWeight: '800', color: theme.colors.text },
-  pageSubtitle: { fontSize: 13, color: theme.colors.textMuted },
+  utilityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  pageSubtitle: { flex: 1, fontSize: 12, fontWeight: '600', color: theme.colors.textMuted },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: theme.colors.primary,
@@ -420,9 +453,23 @@ const s = StyleSheet.create({
     backgroundColor: theme.colors.surface, borderRadius: 20, padding: 14,
     borderWidth: 1, borderColor: theme.colors.border, gap: 10,
   },
+  cardActive: {
+    borderColor: '#b8d9c6',
+    backgroundColor: '#f6fbf7',
+  },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
+  farmTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   farmName: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
+  activeFarmBadge: {
+    backgroundColor: '#e7f5ec',
+    borderColor: '#c7e7d2',
+    borderWidth: 1,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  activeFarmBadgeText: { fontSize: 10, fontWeight: '700', color: theme.colors.primary },
   locationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
   locationText: { flex: 1, fontSize: 12, color: theme.colors.textMuted, lineHeight: 17 },
 

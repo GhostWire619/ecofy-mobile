@@ -9,7 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { XpGainProvider } from '@/components/game';
 import { AuthProvider, useAuth } from '@/lib/auth/provider';
-import { farmRepository } from '@/lib/db/repositories';
+import { farmRepository, INTRO_SEEN_KEY, prefsRepository } from '@/lib/db/repositories';
 import { I18nProvider, useI18n } from '@/lib/i18n';
 import { registerPushNotifications } from '@/lib/notifications/register';
 import { SyncProvider } from '@/lib/sync/provider';
@@ -48,9 +48,20 @@ function NavigationGate() {
 
     const inAuth = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
+    const inIntro = segments[0] === 'intro';
 
-    if (!isAuthenticated && !inAuth) {
-      router.replace('/(auth)/login');
+    if (!isAuthenticated) {
+      // Already on a pre-auth screen (intro or login/register) — let it be, so
+      // the user can move intro → register/login without the gate bouncing them.
+      if (inIntro || inAuth) {
+        return;
+      }
+      // First install (intro not yet seen) → show the hero carousel; otherwise
+      // go straight to sign in. Read the flag fresh each time.
+      prefsRepository
+        .get(INTRO_SEEN_KEY)
+        .then((seen) => router.replace(seen === '1' ? '/(auth)/login' : '/intro'))
+        .catch(() => router.replace('/(auth)/login'));
       return;
     }
 
@@ -69,7 +80,12 @@ function NavigationGate() {
       return;
     }
 
-    if (isAuthenticated && onboardingComplete && (inAuth || inOnboarding)) {
+    // Authenticated + onboarded: leave any pre-app screen (auth, onboarding,
+    // intro) AND the initial '/index' landing route — otherwise the app sits on
+    // the index spinner forever (the gate only routed in from auth/onboarding).
+    const seg0 = (segments as readonly string[])[0];
+    const onLanding = !seg0 || seg0 === 'index';
+    if (isAuthenticated && onboardingComplete && (inAuth || inOnboarding || inIntro || onLanding)) {
       router.replace('/(tabs)/today' as never);
     }
   }, [i18nReady, isAuthenticated, isReady, markOnboardingComplete, onboardingComplete, segments]);
@@ -113,6 +129,8 @@ function NavigationGate() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="intro" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

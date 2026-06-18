@@ -104,4 +104,42 @@ describe('mobileApi envelope handling', () => {
       }),
     ]);
   });
+
+  it('normalizes the backend daily weather forecast for the mobile widget', async () => {
+    mockApiRequest.mockResolvedValue({
+      location: { lat: -6.8, lng: 39.2, name: 'Shamba 1' },
+      current: {
+        temperature: 27.4,
+        humidity: 71,
+        conditions: 'Partly cloudy',
+      },
+      daily: [
+        {
+          date: '2026-06-18',
+          temperature_min: 21.2,
+          temperature_max: 29.8,
+          rainfall_mm: 4.5,
+          precipitation_probability: 65,
+          conditions: 'Rain showers',
+        },
+      ],
+    });
+
+    await expect(mobileApi.getWeatherForFarm('farm-1')).resolves.toMatchObject({
+      current: { temperature: 27.4 },
+      forecast: [
+        {
+          date: '2026-06-18',
+          temperature_low: 21.2,
+          temperature_high: 29.8,
+          rainfall_mm: 4.5,
+          precipitation_probability: 65,
+        },
+      ],
+      summary: {
+        period_days: 1,
+        total_rainfall_mm: 4.5,
+      },
+    });
+  });
 });
