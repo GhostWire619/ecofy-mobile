@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/state/empty-state';
 import { Screen } from '@/components/layout/screen';
 import type { LogRecord } from '@/lib/domain/types';
 import { toAbsoluteUrl } from '@/lib/utils/url';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 type NoteImage = { url: string; thumbnail_url?: string | null; caption?: string | null };
@@ -24,6 +25,7 @@ function fmtDateTime(value?: string | null) {
 }
 
 export function NoteDetailScreen() {
+  const { t } = useI18n();
   const { payload } = useLocalSearchParams<{ payload?: string }>();
 
   const note = useMemo<Note | null>(() => {
@@ -38,7 +40,7 @@ export function NoteDetailScreen() {
   if (!note) {
     return (
       <Screen>
-        <EmptyState title="Note not found" description="This note could not be opened." />
+        <EmptyState title={t('logbook.noteNotFound')} description={t('logbook.noteNotFoundDesc')} />
       </Screen>
     );
   }
@@ -77,7 +79,7 @@ export function NoteDetailScreen() {
 
       {note.notes?.trim() ? (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Note</Text>
+          <Text style={styles.sectionLabel}>{t('logbook.noteLabel')}</Text>
           <Text style={styles.body}>{note.notes}</Text>
         </View>
       ) : null}

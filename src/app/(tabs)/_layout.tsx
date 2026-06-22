@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/lib/auth/provider';
 import { useEngagement } from '@/lib/hooks/use-engagement';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 function initials(name?: string | null) {
@@ -16,6 +17,7 @@ function initials(name?: string | null) {
 
 function HeaderActions() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const { data: engagement } = useEngagement();
   const hasAlerts = (engagement?.reward_eligibility?.length ?? 0) > 0;
 
@@ -24,7 +26,7 @@ function HeaderActions() {
       <Pressable
         style={s.bellBtn}
         hitSlop={6}
-        accessibilityLabel="Notifications"
+        accessibilityLabel={t('tabs.notifications')}
         onPress={() => router.push('/notifications')}
       >
         <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
@@ -33,7 +35,7 @@ function HeaderActions() {
       <Pressable
         style={s.avatar}
         hitSlop={6}
-        accessibilityLabel="Profile and settings"
+        accessibilityLabel={t('tabs.profileSettings')}
         onPress={() => router.push('/settings')}
       >
         <Text style={s.avatarText}>{initials(user?.full_name)}</Text>
@@ -61,10 +63,22 @@ function TabLabel({
   focused: boolean;
   color: string;
 }) {
-  return <Text style={[s.tabLabel, focused && s.tabLabelActive, { color }]}>{label}</Text>;
+  // Keep to one line and let a longer word (e.g. Swahili) shrink rather than wrap
+  // — wrapping to 2 lines would break the fixed tab-bar height.
+  return (
+    <Text
+      style={[s.tabLabel, focused && s.tabLabelActive, { color }]}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.8}
+    >
+      {label}
+    </Text>
+  );
 }
 
 export default function TabsLayout() {
+  const { t } = useI18n();
   return (
     <Tabs
       initialRouteName="today"
@@ -83,9 +97,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="today"
         options={{
-          title: 'Today',
+          title: t('tabs.today'),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label="Today" focused={focused} color={color} />
+            <TabLabel label={t('tabs.today')} focused={focused} color={color} />
           ),
           tabBarIcon: ({ focused, color }) => <TabIcon name="today-outline" focused={focused} color={color} />,
         }}
@@ -95,9 +109,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Farms',
+          title: t('tabs.farms'),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label="Farms" focused={focused} color={color} />
+            <TabLabel label={t('tabs.farms')} focused={focused} color={color} />
           ),
           tabBarIcon: ({ focused, color }) => <TabIcon name="leaf-outline" focused={focused} color={color} />,
         }}
@@ -107,9 +121,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="journey"
         options={{
-          title: 'Journey',
+          title: t('tabs.journey'),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label="Journey" focused={focused} color={color} />
+            <TabLabel label={t('tabs.journey')} focused={focused} color={color} />
           ),
           tabBarIcon: ({ focused, color }) => <TabIcon name="trophy-outline" focused={focused} color={color} />,
         }}
@@ -119,9 +133,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="logbook"
         options={{
-          title: 'Notes',
+          title: t('tabs.notes'),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label="Notes" focused={focused} color={color} />
+            <TabLabel label={t('tabs.notes')} focused={focused} color={color} />
           ),
           tabBarIcon: ({ focused, color }) => <TabIcon name="document-text-outline" focused={focused} color={color} />,
         }}
@@ -131,9 +145,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="market"
         options={{
-          title: 'Prices',
+          title: t('tabs.prices'),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label="Prices" focused={focused} color={color} />
+            <TabLabel label={t('tabs.prices')} focused={focused} color={color} />
           ),
           tabBarIcon: ({ focused, color }) => <TabIcon name="stats-chart-outline" focused={focused} color={color} />,
         }}

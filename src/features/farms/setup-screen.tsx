@@ -91,7 +91,7 @@ const PLANTING_OFFSET_DAYS: Record<PlantingChoice, number> = {
 export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
   const queryClient = useQueryClient();
   const { markOnboardingComplete } = useAuth();
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const sw = locale === 'sw';
 
   const [crops, setCrops] = useState<CropCatalogItem[]>(cropCatalog);
@@ -173,6 +173,21 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
     setForm((c) => ({ ...c, sizeAcres: acres }));
   }, [boundarySelection.mappedAreaHectares, sizeEditedManually]);
 
+  // Plain-language way to mark the farm — built for farmers who can't read a map.
+  // Switching to a GPS mode collapses the sheet so the map's capture button shows.
+  function chooseMethod(next: MappingMode) {
+    setMappingMode(next);
+    if (next === 'point' || next === 'walk') {
+      translateY.value = withTiming(COLLAPSED_Y, { duration: 280, easing: EASE });
+    }
+  }
+
+  const METHODS: { key: MappingMode; emoji: string; title: string; desc: string }[] = [
+    { key: 'point', emoji: '📍', title: t('setup.methodPointTitle'), desc: t('setup.methodPointDesc') },
+    { key: 'walk', emoji: '🚶', title: t('setup.methodWalkTitle'), desc: t('setup.methodWalkDesc') },
+    { key: 'polygon', emoji: '🗺️', title: t('setup.methodDrawTitle'), desc: t('setup.methodDrawDesc') },
+  ];
+
   const selectedCrop = crops.find((c) => c.id === form.cropId) ?? null;
 
   const locationLine = boundarySelection.formattedAddress ||
@@ -184,9 +199,9 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
     try {
       const sizeHectares = Number(form.sizeAcres) * HECTARES_PER_ACRE;
 
-      if (!form.name.trim()) throw new Error('Enter a farm name before saving.');
+      if (!form.name.trim()) throw new Error('setup.errEnterName');
       if (!Number.isFinite(sizeHectares) || sizeHectares <= 0)
-        throw new Error('Enter a valid farm size.');
+        throw new Error('setup.errEnterSize');
 
       const { farm, plot } = await farmRepository.createLocalFarm({
         name: form.name.trim(),
@@ -232,7 +247,7 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
       }
       router.replace(`/farms/${farm.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Farm setup failed');
+      setError(err instanceof Error ? err.message : 'setup.errSetupFailed');
     } finally {
       setLoading(false);
     }
@@ -270,16 +285,16 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
             <View style={s.peekHeader}>
               <View style={s.peekTitleRow}>
                 <Text style={s.peekTitle}>
-                  {mode === 'onboarding' ? 'Set up your farm' : 'Add a farm'}
+                  {mode === 'onboarding' ? t('setup.setUpYourFarm') : t('setup.addAFarm')}
                 </Text>
                 {mode === 'add' && (
-                  <Text style={s.swipeHint}>↑ Swipe up</Text>
+                  <Text style={s.swipeHint}>{t('setup.swipeUp')}</Text>
                 )}
               </View>
               {locationLine ? (
                 <Text style={s.peekLocation} numberOfLines={1}>📍 {locationLine}</Text>
               ) : (
-                <Text style={s.peekLocationEmpty}>Tap the map to set your farm location</Text>
+                <Text style={s.peekLocationEmpty}>{t('setup.tapMapToSet')}</Text>
               )}
             </View>
           </View>
@@ -302,10 +317,35 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
             </View>
           ) : null}
 
+          {/* How to mark the farm — low-literacy first */}
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>{t('setup.whereIsFarm')}</Text>
+            <Text style={s.methodHint}>{t('setup.pickEasiest')}</Text>
+            {METHODS.map((m) => {
+              const active = mappingMode === m.key;
+              return (
+                <TouchableOpacity
+                  key={m.key}
+                  style={[s.methodCard, active && s.methodCardActive]}
+                  onPress={() => chooseMethod(m.key)}
+                  activeOpacity={0.85}
+                  testID={`farm-method-${m.key}`}
+                >
+                  <Text style={s.methodEmoji}>{m.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.methodTitle}>{m.title}</Text>
+                    <Text style={s.methodDesc}>{m.desc}</Text>
+                  </View>
+                  {active ? <Text style={s.methodCheck}>✓</Text> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
           {/* Coordinate entry panel */}
           {mappingMode === 'coordinates' && pickerHandle ? (
             <View style={s.section}>
-              <Text style={s.sectionTitle}>Enter coordinates</Text>
+              <Text style={s.sectionTitle}>{t('setup.enterCoordinates')}</Text>
               {pickerHandle.coordRows.map((row, i) => (
                 <View key={i} style={s.coordPair}>
                   <View style={s.coordField}>
@@ -343,10 +383,10 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
                   pickerHandle.setCoordRows([...pickerHandle.coordRows, { lat: '', lng: '' }])
                 }
               >
-                <Text style={s.addCoordText}>+ Add point</Text>
+                <Text style={s.addCoordText}>{t('setup.addPoint')}</Text>
               </TouchableOpacity>
               <Button
-                label="Apply coordinates"
+                label={t('setup.applyCoordinates')}
                 variant="secondary"
                 onPress={pickerHandle.applyCoordinates}
               />
@@ -355,13 +395,13 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
 
           {/* Farm profile */}
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Farm profile</Text>
+            <Text style={s.sectionTitle}>{t('setup.farmProfile')}</Text>
 
             <TextField
-              label="Farm name"
+              label={t('setup.farmName')}
               value={form.name}
               onChangeText={(v) => setForm((c) => ({ ...c, name: v }))}
-              placeholder="e.g. Main Farm"
+              placeholder={t('setup.farmNamePlaceholder')}
             />
             <View style={s.quickRow}>
               {QUICK_NAMES.map((n) => (
@@ -411,8 +451,8 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
           {/* Crop — optional inline dropdown */}
           <View style={s.section}>
             <View style={s.fieldLabelRow}>
-              <Text style={s.sectionTitle}>Crop</Text>
-              <Text style={s.optionalTag}>Optional</Text>
+              <Text style={s.sectionTitle}>{t('onboarding.cropLabel')}</Text>
+              <Text style={s.optionalTag}>{t('common.optional')}</Text>
             </View>
             <TouchableOpacity
               style={[s.selectTrigger, cropOpen && s.selectTriggerOpen]}
@@ -420,7 +460,7 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
               activeOpacity={0.8}
             >
               <Text style={[s.selectText, !form.cropId && s.selectPlaceholder]}>
-                {selectedCrop?.common_name ?? 'Select crop'}
+                {selectedCrop?.common_name ?? t('onboarding.selectCrop')}
               </Text>
               <Text style={s.selectChevron}>{cropOpen ? '⌃' : '⌄'}</Text>
             </TouchableOpacity>
@@ -437,7 +477,7 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
                       style={[s.dropdownItem, s.dropdownItemBorder]}
                       onPress={() => { setForm((c) => ({ ...c, cropId: '' })); setCropOpen(false); }}
                     >
-                      <Text style={[s.dropdownItemText, s.dropdownItemMuted]}>No crop selected</Text>
+                      <Text style={[s.dropdownItemText, s.dropdownItemMuted]}>{t('setup.noCropSelected')}</Text>
                     </Pressable>
                     {crops.map((crop, i) => (
                       <Pressable
@@ -508,12 +548,12 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
           </View>
 
           {/* Submit */}
-          {error ? <Text style={s.error}>{error}</Text> : null}
+          {error ? <Text style={s.error}>{t(error)}</Text> : null}
           <Button
             label={
               loading
-                ? mode === 'onboarding' ? 'Creating farm...' : 'Saving farm...'
-                : mode === 'onboarding' ? 'Create Farm Profile' : 'Save farm'
+                ? mode === 'onboarding' ? t('setup.creatingFarm') : t('setup.savingFarm')
+                : mode === 'onboarding' ? t('onboarding.createFarmProfile') : t('setup.saveFarm')
             }
             onPress={() => void submit()}
             disabled={loading}
@@ -632,6 +672,22 @@ const s = StyleSheet.create({
   // Section
   section: { gap: theme.spacing.md },
   sectionTitle: { fontSize: 17, fontWeight: '800', color: theme.colors.text },
+  methodHint: { fontSize: 13, color: theme.colors.textMuted, marginTop: -6 },
+  methodCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  methodCardActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '0f' },
+  methodEmoji: { fontSize: 26 },
+  methodTitle: { fontSize: 15, fontWeight: '800', color: theme.colors.text },
+  methodDesc: { fontSize: 12.5, lineHeight: 17, color: theme.colors.textMuted, marginTop: 2 },
+  methodCheck: { fontSize: 18, fontWeight: '800', color: theme.colors.primary },
   fieldLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   optionalTag: { fontSize: 13, color: theme.colors.textMuted },
   selectTrigger: {

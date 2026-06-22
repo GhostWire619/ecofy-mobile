@@ -4,6 +4,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { recommendationRepository } from '@/lib/db/repositories';
 import type { RecommendationRecord } from '@/lib/domain/types';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 const PRIORITY: Record<
@@ -24,12 +25,14 @@ const PRIORITY: Record<
 export function SmartNudges({
   journeyId,
   limit = 5,
-  title = 'Smart nudges',
+  title,
 }: {
   journeyId?: string;
   limit?: number;
   title?: string;
 }) {
+  const { t } = useI18n();
+  const heading = title ?? t('today.smartNudges');
   const queryClient = useQueryClient();
   const queryKey = ['smart-nudges', journeyId ?? 'all'];
 
@@ -52,7 +55,7 @@ export function SmartNudges({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionTitle}>{heading}</Text>
       {nudges.map((n: RecommendationRecord) => {
         const p = PRIORITY[n.priority] ?? PRIORITY.medium;
         return (

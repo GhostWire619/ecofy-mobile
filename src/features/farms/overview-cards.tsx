@@ -15,18 +15,21 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import Svg, { Circle } from 'react-native-svg';
 
 import type { FarmSoilResponse, PlotHealthSnapshot } from '@/lib/domain/types';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
-/** Risk-level → ring colour + label. Higher score = more risk = more filled. */
-const RISK_VISUAL: Record<string, { label: string; color: string }> = {
-  LOW: { label: 'Healthy', color: '#1f8f54' },
-  MODERATE: { label: 'Watch', color: '#c98a00' },
-  HIGH: { label: 'At risk', color: '#e46a11' },
-  CRITICAL: { label: 'Critical', color: '#c73a28' },
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
+
+/** Risk-level → ring colour + label key. Higher score = more risk = more filled. */
+const RISK_VISUAL: Record<string, { labelKey: string; color: string }> = {
+  LOW: { labelKey: 'farmCards.riskHealthy', color: '#1f8f54' },
+  MODERATE: { labelKey: 'farmCards.riskWatch', color: '#c98a00' },
+  HIGH: { labelKey: 'farmCards.riskAtRisk', color: '#e46a11' },
+  CRITICAL: { labelKey: 'farmCards.riskCritical', color: '#c73a28' },
 };
 
 function riskVisual(level?: string | null) {
-  return RISK_VISUAL[(level ?? '').toUpperCase()] ?? { label: 'Stable', color: theme.colors.textMuted };
+  return RISK_VISUAL[(level ?? '').toUpperCase()] ?? { labelKey: 'farmCards.riskStable', color: theme.colors.textMuted };
 }
 
 function fmtDate(value?: string | null) {
@@ -67,10 +70,11 @@ export function CropHeroCard({
   onEdit: () => void;
   onSetPlanting: () => void;
 }) {
+  const { t } = useI18n();
   const subtitleParts = [
-    cropName || 'No crop yet',
+    cropName || t('farmCards.noCropYet'),
     variety || null,
-    sizeHa ? `${sizeHa} ha` : null,
+    sizeHa ? t('farmCards.haValue', { n: sizeHa }) : null,
   ].filter(Boolean);
 
   const pct = Math.max(0, Math.min(100, Math.round(progressPct ?? 0)));
@@ -108,19 +112,19 @@ export function CropHeroCard({
               </View>
             ) : null}
             <Text style={s.heroMeta}>
-              {dayN != null ? `Day ${dayN}` : 'Planted'}
-              {harvest ? ` · harvest ~${harvest}` : ''}
+              {dayN != null ? t('farmCards.dayN', { n: dayN }) : t('farmCards.planted')}
+              {harvest ? t('farmCards.harvestAround', { date: harvest }) : ''}
             </Text>
           </View>
           <View style={s.progressTrack}>
             <View style={[s.progressFill, { width: `${pct}%` }]} />
           </View>
-          <Text style={s.progressLabel}>{pct}% through the season</Text>
+          <Text style={s.progressLabel}>{t('farmCards.pctSeason', { pct })}</Text>
         </>
       ) : (
         <TouchableOpacity style={s.setPlantingBtn} onPress={onSetPlanting} activeOpacity={0.85}>
           <Ionicons name="calendar-outline" size={16} color={theme.colors.primary} />
-          <Text style={s.setPlantingText}>Set planting date to start the season</Text>
+          <Text style={s.setPlantingText}>{t('farmCards.setPlanting')}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -130,35 +134,35 @@ export function CropHeroCard({
 // ── Health ring ──────────────────────────────────────────────────────────────
 type SignalRow = { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; tone: string };
 
-function buildSignals(snap: PlotHealthSnapshot): SignalRow[] {
+function buildSignals(snap: PlotHealthSnapshot, t: TFunc): SignalRow[] {
   const b = snap.breakdown;
   const sat = b.satellite;
   const satOk = sat.status === 'healthy' || (typeof sat.ndvi === 'number' && sat.ndvi >= 0.6);
   const satValue =
     typeof sat.ndvi === 'number'
-      ? `${sat.ndvi.toFixed(2)} ${satOk ? 'healthy' : 'stressed'}`
-      : 'no scan yet';
+      ? `${sat.ndvi.toFixed(2)} ${satOk ? t('farmCards.healthy') : t('farmCards.stressed')}`
+      : t('farmCards.noScanYet');
 
   const weather = b.weather;
-  const weatherValue = weather.threats.length > 0 ? weather.threats[0] : 'calm';
+  const weatherValue = weather.threats.length > 0 ? weather.threats[0] : t('farmCards.calm');
 
   const ops = b.operations;
   const opsValue = ops.overdue_count > 0
-    ? `${ops.overdue_count} overdue`
+    ? t('farmCards.overdueN', { n: ops.overdue_count })
     : ops.pending_count > 0
-      ? `${ops.pending_count} due`
-      : 'up to date';
+      ? t('farmCards.dueN', { n: ops.pending_count })
+      : t('farmCards.upToDate');
 
   const scout = b.scouting;
   const scoutValue = scout.days_since_last == null
-    ? 'no visits'
-    : `${scout.days_since_last}d ago`;
+    ? t('farmCards.noVisits')
+    : t('farmCards.daysAgoShort', { n: scout.days_since_last });
 
   return [
-    { icon: 'scan-outline', label: 'Crop vigour (NDVI)', value: satValue, tone: satOk ? theme.colors.success : theme.colors.warning },
-    { icon: 'rainy-outline', label: 'Weather', value: weatherValue, tone: weather.threats.length ? theme.colors.warning : theme.colors.success },
-    { icon: 'checkbox-outline', label: 'Tasks', value: opsValue, tone: ops.overdue_count > 0 ? theme.colors.danger : theme.colors.success },
-    { icon: 'eye-outline', label: 'Last scouted', value: scoutValue, tone: (scout.days_since_last ?? 99) > 14 ? theme.colors.warning : theme.colors.success },
+    { icon: 'scan-outline', label: t('farmCards.sigNdvi'), value: satValue, tone: satOk ? theme.colors.success : theme.colors.warning },
+    { icon: 'rainy-outline', label: t('farmCards.sigWeather'), value: weatherValue, tone: weather.threats.length ? theme.colors.warning : theme.colors.success },
+    { icon: 'checkbox-outline', label: t('farmCards.sigTasks'), value: opsValue, tone: ops.overdue_count > 0 ? theme.colors.danger : theme.colors.success },
+    { icon: 'eye-outline', label: t('farmCards.sigScouted'), value: scoutValue, tone: (scout.days_since_last ?? 99) > 14 ? theme.colors.warning : theme.colors.success },
   ];
 }
 
@@ -169,11 +173,12 @@ export function HealthRingCard({
   snapshot: PlotHealthSnapshot | null;
   loading: boolean;
 }) {
+  const { t } = useI18n();
   if (loading) {
     return (
       <View style={[s.card, s.centerRow]}>
         <ActivityIndicator color={theme.colors.primary} />
-        <Text style={s.mutedText}>Checking field health…</Text>
+        <Text style={s.mutedText}>{t('farmCards.checkingHealth')}</Text>
       </View>
     );
   }
@@ -182,10 +187,10 @@ export function HealthRingCard({
       <View style={s.card}>
         <View style={s.sectionHead}>
           <Ionicons name="pulse-outline" size={18} color={theme.colors.primary} />
-          <Text style={s.sectionTitle}>Field health</Text>
+          <Text style={s.sectionTitle}>{t('farmCards.fieldHealth')}</Text>
         </View>
         <Text style={s.mutedText}>
-          Monitoring starts once this farm has a crop journey and location set.
+          {t('farmCards.monitoringStarts')}
         </Text>
       </View>
     );
@@ -195,7 +200,7 @@ export function HealthRingCard({
   const visual = riskVisual(snapshot.risk_level);
   const C = 2 * Math.PI * 32;
   const offset = C * (1 - score / 100);
-  const signals = buildSignals(snapshot);
+  const signals = buildSignals(snapshot, t);
 
   return (
     <View style={s.card}>
@@ -218,7 +223,7 @@ export function HealthRingCard({
           </Svg>
           <View style={s.ringCenter}>
             <Text style={s.ringScore}>{score}</Text>
-            <Text style={[s.ringLevel, { color: visual.color }]}>{visual.label}</Text>
+            <Text style={[s.ringLevel, { color: visual.color }]}>{t(visual.labelKey)}</Text>
           </View>
         </View>
         <View style={s.signalCol}>
@@ -236,13 +241,17 @@ export function HealthRingCard({
 }
 
 // ── Soil ───────────────────────────────────────────────────────────────────
-const WATER_VISUAL: Record<string, { label: string; color: string; bg: string }> = {
-  dry: { label: 'Dry', color: '#c17a00', bg: '#fdf3df' },
-  adequate: { label: 'Adequate', color: '#1f8f54', bg: '#e9f7ef' },
-  wet: { label: 'Wet', color: '#1f6fb0', bg: '#e6f1fb' },
+const WATER_VISUAL: Record<string, { labelKey: string; color: string; bg: string }> = {
+  dry: { labelKey: 'farmCards.waterDry', color: '#c17a00', bg: '#fdf3df' },
+  adequate: { labelKey: 'farmCards.waterAdequate', color: '#1f8f54', bg: '#e9f7ef' },
+  wet: { labelKey: 'farmCards.waterWet', color: '#1f6fb0', bg: '#e6f1fb' },
 };
 
-const SOURCE_LABEL: Record<string, string> = { isda: 'iSDA', soilgrids: 'SoilGrids', default: 'estimate' };
+function sourceLabel(source: string, t: TFunc): string {
+  if (source === 'isda') return 'iSDA';
+  if (source === 'soilgrids') return 'SoilGrids';
+  return t('farmCards.estimate');
+}
 
 function SoilMetric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -265,11 +274,12 @@ export function SoilCard({
   loading: boolean;
   error: boolean;
 }) {
+  const { t } = useI18n();
   if (loading) {
     return (
       <View style={[s.card, s.centerRow]}>
         <ActivityIndicator color={theme.colors.primary} />
-        <Text style={s.mutedText}>Reading the soil…</Text>
+        <Text style={s.mutedText}>{t('farmCards.soilReading')}</Text>
       </View>
     );
   }
@@ -278,10 +288,10 @@ export function SoilCard({
       <View style={s.card}>
         <View style={s.sectionHead}>
           <Ionicons name="layers-outline" size={18} color={theme.colors.info} />
-          <Text style={s.sectionTitle}>Soil</Text>
+          <Text style={s.sectionTitle}>{t('farmCards.soil')}</Text>
         </View>
         <Text style={s.mutedText}>
-          Soil data needs farm coordinates. Set the farm location on the map to load it.
+          {t('farmCards.soilUnavailable')}
         </Text>
       </View>
     );
@@ -297,36 +307,88 @@ export function SoilCard({
     <View style={s.card}>
       <View style={s.sectionHead}>
         <Ionicons name="layers-outline" size={18} color={theme.colors.info} />
-        <Text style={s.sectionTitle}>Soil</Text>
+        <Text style={s.sectionTitle}>{t('farmCards.soil')}</Text>
         <View style={{ flex: 1 }} />
         <View style={s.sourcePill}>
           <Text style={s.sourcePillText}>
-            {SOURCE_LABEL[p.source] ?? p.source} · {p.confidence}
+            {sourceLabel(p.source, t)} · {p.confidence}
           </Text>
         </View>
       </View>
 
       <View style={s.soilGrid}>
-        <SoilMetric label="Texture" value={p.texture_class ?? '–'} />
-        <SoilMetric label="pH" value={p.ph != null ? p.ph.toFixed(1) : '–'} hint={p.ph_band ?? undefined} />
-        <SoilMetric label="Water holding" value={p.water_capacity_mm != null ? `${Math.round(p.water_capacity_mm)} mm/m` : '–'} />
-        <SoilMetric label="N · P · K" value={npk} />
+        <SoilMetric label={t('farmCards.texture')} value={p.texture_class ?? '–'} />
+        <SoilMetric label={t('farmCards.ph')} value={p.ph != null ? p.ph.toFixed(1) : '–'} hint={p.ph_band ?? undefined} />
+        <SoilMetric label={t('farmCards.waterHolding')} value={p.water_capacity_mm != null ? t('farmCards.mmPerM', { n: Math.round(p.water_capacity_mm) }) : '–'} />
+        <SoilMetric label={t('farmCards.npk')} value={npk} />
       </View>
 
       {water && ws ? (
         <View style={[s.waterStrip, { backgroundColor: water.bg }]}>
           <Ionicons name="water-outline" size={15} color={water.color} />
           <Text style={[s.waterText, { color: water.color }]}>
-            Soil moisture: {water.label} · {ws.pct}% of capacity
+            {t('farmCards.soilMoisture', { label: t(water.labelKey), pct: ws.pct })}
           </Text>
         </View>
       ) : null}
 
       {refreshed ? (
         <Text style={s.soilFooter}>
-          <Ionicons name="refresh-outline" size={11} /> Soil profile from {SOURCE_LABEL[p.source] ?? p.source} · {refreshed}
+          <Ionicons name="refresh-outline" size={11} /> {t('farmCards.soilProfileFrom', { source: sourceLabel(p.source, t), date: refreshed })}
         </Text>
       ) : null}
+    </View>
+  );
+}
+
+// ── Farm details (grouped, tap-a-row-to-edit) ────────────────────────────────
+export interface FarmDetailItem {
+  key: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  missing?: boolean;
+  onPress?: () => void;
+}
+export interface FarmDetailGroup {
+  title: string;
+  items: FarmDetailItem[];
+}
+
+export function FarmDetailsCard({ groups }: { groups: FarmDetailGroup[] }) {
+  return (
+    <View style={{ gap: 12 }}>
+      {groups.map((group) => (
+        <View key={group.title} style={s.card}>
+          <Text style={s.detailGroupTitle}>{group.title.toUpperCase()}</Text>
+          <View>
+            {group.items.map((item, i) => (
+              <TouchableOpacity
+                key={item.key}
+                style={[s.detailRow, i < group.items.length - 1 && s.detailRowDivider]}
+                onPress={item.onPress}
+                disabled={!item.onPress}
+                activeOpacity={item.onPress ? 0.6 : 1}
+                testID={`farm-detail-${item.key}`}
+              >
+                <View style={s.detailIcon}>
+                  <Ionicons name={item.icon} size={16} color={theme.colors.primary} />
+                </View>
+                <Text style={s.detailLabel}>{item.label}</Text>
+                <Text
+                  style={[s.detailValue, item.missing && s.detailValueMissing]}
+                  numberOfLines={1}
+                >
+                  {item.value}
+                </Text>
+                {item.onPress ? (
+                  <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+                ) : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      ))}
     </View>
   );
 }
@@ -496,4 +558,19 @@ const s = StyleSheet.create({
   },
   waterText: { fontSize: 13, fontWeight: '700', flex: 1 },
   soilFooter: { fontSize: 11, color: theme.colors.textMuted },
+
+  // farm details
+  detailGroupTitle: {
+    fontSize: 11, fontWeight: '800', letterSpacing: 0.8, color: theme.colors.textMuted,
+  },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+  detailRowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
+  detailIcon: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: theme.colors.primary + '14',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  detailLabel: { fontSize: 14, color: theme.colors.textMuted },
+  detailValue: { flex: 1, textAlign: 'right', fontSize: 15, fontWeight: '700', color: theme.colors.text },
+  detailValueMissing: { color: theme.colors.warning },
 });

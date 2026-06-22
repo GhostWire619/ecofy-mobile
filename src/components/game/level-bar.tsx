@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 /**
@@ -31,6 +32,7 @@ export function LevelBar({
   progress: number; // 0..1
   compact?: boolean;
 }) {
+  const { t } = useI18n();
   const fill = useSharedValue(0);
   const badgeScale = useSharedValue(1);
 
@@ -64,7 +66,7 @@ export function LevelBar({
       <View style={styles.barWrap}>
         {!compact && (
           <View style={styles.labelRow}>
-            <Text style={styles.label}>Level {level}</Text>
+            <Text style={styles.label}>{t('game.level', { n: level })}</Text>
             <Text style={styles.xpText}>
               {xpIntoLevel}/{xpForNextLevel} XP
             </Text>

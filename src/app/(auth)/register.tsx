@@ -8,9 +8,11 @@ import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { TextField } from '@/components/forms/text-field';
 import { Screen } from '@/components/layout/screen';
 import { useAuth } from '@/lib/auth/provider';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 export default function RegisterScreen() {
+  const { t } = useI18n();
   const { register, loginWithGoogle } = useAuth();
   const [form, setForm] = useState({
     fullName: '',
@@ -36,7 +38,7 @@ export default function RegisterScreen() {
         preferred_language: 'en',
       });
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Registration failed');
+      setError(nextError instanceof Error ? nextError.message : 'auth.registrationFailed');
     } finally {
       setLoading(false);
     }
@@ -50,7 +52,7 @@ export default function RegisterScreen() {
       // creates the account on first use, then signs in.
       await loginWithGoogle(idToken);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Google sign-up failed');
+      setError(nextError instanceof Error ? nextError.message : 'auth.googleSignUpFailed');
     } finally {
       setLoading(false);
     }
@@ -59,48 +61,46 @@ export default function RegisterScreen() {
   return (
     <Screen edges={['top', 'bottom']}>
       <Card>
-        <Text style={styles.title}>Create your Ecofy account</Text>
-        <Text style={styles.copy}>
-          Start with a mobile workflow built for daily farming decisions and low-connectivity field work.
-        </Text>
+        <Text style={styles.title}>{t('auth.registerTitle')}</Text>
+        <Text style={styles.copy}>{t('auth.registerSubtitle')}</Text>
       </Card>
       <Card>
         <TextField
-          label="Full name"
+          label={t('auth.fullName')}
           value={form.fullName}
           onChangeText={(value) => setForm((current) => ({ ...current, fullName: value }))}
         />
         <TextField
-          label="Email"
+          label={t('auth.email')}
           value={form.email}
           onChangeText={(value) => setForm((current) => ({ ...current, email: value }))}
           autoCapitalize="none"
         />
         <TextField
-          label="Password"
+          label={t('auth.password')}
           value={form.password}
           onChangeText={(value) => setForm((current) => ({ ...current, password: value }))}
           secureTextEntry
         />
         <TextField
-          label="Phone number"
+          label={t('auth.phoneNumber')}
           value={form.phoneNumber}
           onChangeText={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
         />
         <TextField
-          label="Country or region"
+          label={t('auth.countryRegion')}
           value={form.location}
           onChangeText={(value) => setForm((current) => ({ ...current, location: value }))}
         />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Button label={loading ? 'Creating account...' : 'Create account'} disabled={loading} onPress={() => void submit()} />
+        {error ? <Text style={styles.error}>{t(error)}</Text> : null}
+        <Button label={loading ? t('auth.creatingAccount') : t('auth.createAccount')} disabled={loading} onPress={() => void submit()} />
         <GoogleSignInButton
-          label="Sign up with Google"
+          label={t('auth.signUpWithGoogle')}
           disabled={loading}
           onToken={(token) => void onGoogleToken(token)}
           onError={(message) => setError(message)}
         />
-        <Button label="Back to sign in" variant="ghost" disabled={loading} onPress={() => router.back()} />
+        <Button label={t('auth.backToSignIn')} variant="ghost" disabled={loading} onPress={() => router.back()} />
       </Card>
     </Screen>
   );

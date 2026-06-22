@@ -2,15 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import type { TaskRecord } from '@/lib/domain/types';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
-const SNOOZE_OPTIONS: { label: string; days: number; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { label: 'Tomorrow', days: 1, icon: 'today-outline' },
-  { label: 'In 3 days', days: 3, icon: 'calendar-outline' },
-  { label: 'Next week', days: 7, icon: 'calendar-number-outline' },
+// value = stable English sent to the backend (decline_reason); key = display label.
+const SKIP_REASONS: { value: string; key: string }[] = [
+  { value: 'Already done', key: 'taskSheet.reasonAlreadyDone' },
+  { value: 'Not needed', key: 'taskSheet.reasonNotNeeded' },
+  { value: 'Weather', key: 'taskSheet.reasonWeather' },
+  { value: 'No inputs', key: 'taskSheet.reasonNoInputs' },
+  { value: 'Other', key: 'taskSheet.reasonOther' },
 ];
-
-const SKIP_REASONS = ['Already done', 'Not needed', 'Weather', 'No inputs', 'Other'];
 
 /**
  * "What do you want to do with this task?" — gives farmers flexibility instead
@@ -29,6 +31,12 @@ export function TaskActionsSheet({
   onSkip: (reason: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
+  const snoozeOptions: { label: string; days: number; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { label: t('taskSheet.tomorrow'), days: 1, icon: 'today-outline' },
+    { label: t('taskSheet.inDays', { n: 3 }), days: 3, icon: 'calendar-outline' },
+    { label: t('taskSheet.nextWeek'), days: 7, icon: 'calendar-number-outline' },
+  ];
   if (!task) return null;
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
@@ -38,9 +46,9 @@ export function TaskActionsSheet({
           <View style={styles.grabber} />
           <Text style={styles.title} numberOfLines={2}>{task.title}</Text>
 
-          <Text style={styles.sectionLabel}>Snooze</Text>
+          <Text style={styles.sectionLabel}>{t('taskSheet.snooze')}</Text>
           <View style={styles.snoozeRow}>
-            {SNOOZE_OPTIONS.map((o) => (
+            {snoozeOptions.map((o) => (
               <TouchableOpacity
                 key={o.days}
                 style={styles.snoozeBtn}
@@ -53,22 +61,22 @@ export function TaskActionsSheet({
             ))}
           </View>
 
-          <Text style={styles.sectionLabel}>Skip this task</Text>
+          <Text style={styles.sectionLabel}>{t('taskSheet.skipTask')}</Text>
           <View style={styles.reasonWrap}>
             {SKIP_REASONS.map((r) => (
               <TouchableOpacity
-                key={r}
+                key={r.value}
                 style={styles.reasonChip}
                 activeOpacity={0.8}
-                onPress={() => onSkip(r)}
+                onPress={() => onSkip(r.value)}
               >
-                <Text style={styles.reasonText}>{r}</Text>
+                <Text style={styles.reasonText}>{t(r.key)}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <TouchableOpacity style={styles.cancel} onPress={onCancel} activeOpacity={0.8}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={styles.cancelText}>{t('common.cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>

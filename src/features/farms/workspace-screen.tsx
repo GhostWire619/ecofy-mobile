@@ -30,10 +30,13 @@ import {
 } from '@/features/farms/data';
 import {
   CropHeroCard,
+  FarmDetailsCard,
   HealthRingCard,
   InlineCalendar,
   SoilCard,
+  type FarmDetailGroup,
 } from '@/features/farms/overview-cards';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 type WorkspaceTab = 'overview' | 'notes' | 'ledger' | 'market' | 'risks';
@@ -628,6 +631,7 @@ function FarmFieldEditor({
   onClose: () => void;
   onSave: (value: string) => void;
 }) {
+  const { t } = useI18n();
   const [value, setValue] = useState(config.value);
 
   return (
@@ -667,7 +671,7 @@ function FarmFieldEditor({
           ) : config.field.includes('date') ? (
             <View style={{ gap: 10 }}>
               <Text style={styles.editorSelectedDate}>
-                {value ? fmtDate(value, 'EEE, MMM d, yyyy') : 'No date selected'}
+                {value ? fmtDate(value, 'EEE, MMM d, yyyy') : t('farmDetails.noDateSelected')}
               </Text>
               <InlineCalendar value={value} onChange={setValue} />
             </View>
@@ -810,6 +814,7 @@ function RiskActionCard({
 }
 
 export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<WorkspaceTab>('overview');
   const [selectedRiskPlotId, setSelectedRiskPlotId] = useState<string | null>(null);
@@ -1097,15 +1102,6 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
     recommendations: combinedRecommendations,
     hasJourney: Boolean(coreQuery.data?.journey),
   });
-  const monitoringUnavailable = Boolean(
-    liveQuery.data &&
-      [
-        liveQuery.data.farmHealth.error,
-        liveQuery.data.plotHealth.error,
-        liveQuery.data.latestNdvi.error,
-        liveQuery.data.ndviTimeseries.error,
-      ].some(Boolean),
-  );
   const farmStatus = statusVisual(farmHealth?.overall_risk_level ?? plotHealth?.risk_level ?? null);
   const fallbackRiskPlot = coreQuery.data?.plot
     ? {
@@ -1178,7 +1174,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
             <Text style={styles.centerTitle}>Farm not found</Text>
             <Text style={styles.centerMessage}>{errorMessage(coreQuery.error)}</Text>
             <TouchableOpacity style={styles.closeButton} onPress={closeScreen}>
-              <Text style={styles.closeButtonText}>Close</Text>
+              <Text style={styles.closeButtonText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1186,16 +1182,28 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
     );
   }
 
-  const overviewRows = [
-    { key: 'region', label: 'Location', value: coreQuery.data.farm.region || 'Not set', missing: dataMissing(coreQuery.data.farm.region), editField: 'region' as const },
-    { key: 'field-size', label: 'Farm size', value: `${formatValue(coreQuery.data.farm.size_hectares, 1)} ha`, missing: !coreQuery.data.farm.size_hectares, editField: 'size_hectares' as const },
-    { key: 'soil-type', label: 'Soil', value: coreQuery.data.farm.soil_type || 'Not set', missing: dataMissing(coreQuery.data.farm.soil_type), editField: 'soil_type' as const },
-    { key: 'irrigation', label: 'Water', value: coreQuery.data.farm.irrigation_type === 'irrigated' ? 'Irrigation' : 'Rain only', missing: dataMissing(coreQuery.data.farm.irrigation_type), editField: 'irrigation_type' as const },
-    { key: 'crop', label: 'Crop', value: coreQuery.data.journey?.crop_name ?? 'Not set', missing: dataMissing(coreQuery.data.journey?.crop_name), editField: 'crop_name' as const },
-    { key: 'stage', label: 'Crop stage', value: coreQuery.data.journey?.current_stage || 'Waiting for planting date', missing: false },
-    { key: 'planting', label: 'Planted', value: fmtDate(coreQuery.data.journey?.planting_date), missing: !coreQuery.data.journey?.planting_date, editField: 'planting_date' as const },
-    { key: 'harvest', label: 'Harvest', value: fmtDate(coreQuery.data.journey?.expected_harvest_date), missing: !coreQuery.data.journey?.expected_harvest_date, editField: 'expected_harvest_date' as const },
-    { key: 'boundary', label: 'Farm map', value: coreQuery.data.plot?.field_boundary_json ? 'Boundary ready' : 'Not mapped', missing: !coreQuery.data.plot?.field_boundary_json, mapAction: true },
+  const farmRow = coreQuery.data.farm;
+  const journeyRow = coreQuery.data.journey;
+  const detailGroups: FarmDetailGroup[] = [
+    {
+      title: t('farmDetails.cropSeason'),
+      items: [
+        { key: 'crop', icon: 'leaf-outline', label: t('farmDetails.crop'), value: journeyRow?.crop_name ?? t('common.notSet'), missing: dataMissing(journeyRow?.crop_name), onPress: () => openFieldEditor('crop_name') },
+        { key: 'stage', icon: 'trending-up-outline', label: t('farmDetails.stage'), value: (journeyRow?.current_stage || '').replace(/_/g, ' ') || t('farmDetails.stageWaiting') },
+        { key: 'planting', icon: 'calendar-outline', label: t('farmDetails.plantingDate'), value: journeyRow?.planting_date ? fmtDate(journeyRow.planting_date, 'MMM d, yyyy') : t('common.notSet'), missing: !journeyRow?.planting_date, onPress: () => openFieldEditor('planting_date') },
+        { key: 'harvest', icon: 'basket-outline', label: t('farmDetails.harvest'), value: journeyRow?.expected_harvest_date ? fmtDate(journeyRow.expected_harvest_date, 'MMM d, yyyy') : t('common.notSet'), missing: !journeyRow?.expected_harvest_date, onPress: () => openFieldEditor('expected_harvest_date') },
+      ],
+    },
+    {
+      title: t('farmDetails.landLocation'),
+      items: [
+        { key: 'region', icon: 'location-outline', label: t('farmDetails.location'), value: farmRow.region || t('common.notSet'), missing: dataMissing(farmRow.region), onPress: () => openFieldEditor('region') },
+        { key: 'field-size', icon: 'resize-outline', label: t('farmDetails.farmSize'), value: t('farmCards.haValue', { n: formatValue(farmRow.size_hectares, 1) }), missing: !farmRow.size_hectares, onPress: () => openFieldEditor('size_hectares') },
+        { key: 'irrigation', icon: 'water-outline', label: t('farmDetails.water'), value: farmRow.irrigation_type === 'irrigated' ? t('farmDetails.irrigation') : t('farmDetails.rainOnly'), onPress: () => openFieldEditor('irrigation_type') },
+        { key: 'soil-type', icon: 'flask-outline', label: t('farmDetails.soilType'), value: farmRow.soil_type || t('common.notSet'), missing: dataMissing(farmRow.soil_type), onPress: () => openFieldEditor('soil_type') },
+        { key: 'boundary', icon: 'map-outline', label: t('farmDetails.farmMap'), value: coreQuery.data.plot?.field_boundary_json ? t('farmDetails.boundaryReady') : t('farmDetails.notMapped'), missing: !coreQuery.data.plot?.field_boundary_json, onPress: () => router.push(`/farms-map/${farmId}` as never) },
+      ],
+    },
   ];
   const cropChoices = asArray(cropCatalogQuery.data)
     .map((crop) => {
@@ -1227,7 +1235,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
           <View style={styles.headerRow}>
             <View style={styles.headerCopy}>
               <Text style={styles.screenTitle}>{coreQuery.data.farm.name}</Text>
-              <Text style={styles.screenSubtitle}>Farm dashboard</Text>
+              <Text style={styles.screenSubtitle}>{t('farmDetails.farmDashboard')}</Text>
             </View>
             <TouchableOpacity
               accessibilityRole="button"
@@ -1235,7 +1243,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
               style={styles.closeButton}
               testID="farm-workspace-close"
             >
-              <Text style={styles.closeButtonText}>Close</Text>
+              <Text style={styles.closeButtonText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1253,7 +1261,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
                   color={mode === 'overview' ? '#fff' : theme.colors.textMuted}
                 />
                 <Text style={[styles.tabChipText, mode === 'overview' ? styles.tabChipTextActive : null]}>
-                  Overview
+                  {t('farmDetails.overview')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1268,7 +1276,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
                   color={mode === 'notes' ? '#fff' : theme.colors.textMuted}
                 />
                 <Text style={[styles.tabChipText, mode === 'notes' ? styles.tabChipTextActive : null]}>
-                  Notes
+                  {t('farmDetails.notes')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1283,22 +1291,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
                   color={mode === 'ledger' ? '#fff' : theme.colors.textMuted}
                 />
                 <Text style={[styles.tabChipText, mode === 'ledger' ? styles.tabChipTextActive : null]}>
-                  Ledger
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                accessibilityRole="button"
-                onPress={() => setMode('market')}
-                style={[styles.tabChip, mode === 'market' ? styles.tabChipActive : null]}
-                testID="farm-workspace-tab-market"
-              >
-                <Ionicons
-                  name="trending-up-outline"
-                  size={13}
-                  color={mode === 'market' ? '#fff' : theme.colors.textMuted}
-                />
-                <Text style={[styles.tabChipText, mode === 'market' ? styles.tabChipTextActive : null]}>
-                  Market
+                  {t('farmDetails.ledger')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -1313,7 +1306,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
                   color={mode === 'risks' ? '#fff' : theme.colors.textMuted}
                 />
                 <Text style={[styles.tabChipText, mode === 'risks' ? styles.tabChipTextActive : null]}>
-                  Risks
+                  {t('farmDetails.risks')}
                 </Text>
               </TouchableOpacity>
             </ScrollView>
@@ -1323,15 +1316,6 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
             <View style={styles.infoBanner}>
               <Text style={styles.infoBannerText}>
                 No active journey yet. Start a crop journey to unlock live field monitoring.
-              </Text>
-            </View>
-          ) : null}
-
-          {monitoringUnavailable ? (
-            <View style={styles.monitoringBanner}>
-              <Ionicons name="cloud-offline-outline" size={16} color={theme.colors.textMuted} />
-              <Text style={styles.monitoringBannerText}>
-                Live monitoring is unavailable right now. The dashboard is showing what the online farm API returned.
               </Text>
             </View>
           ) : null}
@@ -1366,47 +1350,12 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
                 <View style={styles.inlineNotice}>
                   <Ionicons name="alert-circle-outline" size={16} color="#d08b00" />
                   <Text style={styles.inlineNoticeText}>
-                    {missingSetupItems.length} farm detail{missingSetupItems.length === 1 ? '' : 's'} still need to be completed.
+                    {t(missingSetupItems.length === 1 ? 'farmDetails.detailsToComplete' : 'farmDetails.detailsToCompletePlural', { count: missingSetupItems.length })}
                   </Text>
                 </View>
               ) : null}
 
-              <View style={styles.sectionCard}>
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionTitleRow}>
-                    <Ionicons name="options-outline" size={16} color={theme.colors.primary} />
-                    <Text style={styles.compactSectionTitle}>Farm details</Text>
-                  </View>
-                </View>
-                <View style={styles.dataList}>
-                  {overviewRows.map((row) => (
-                    <View key={row.key} style={styles.dataRow}>
-                      <Text style={styles.dataLabel}>{row.label}</Text>
-                      <View style={styles.dataValueWrap}>
-                        <Text style={[styles.dataValue, row.missing ? styles.dataValueWarn : null]}>{row.value}</Text>
-                        {'editField' in row && row.editField ? (
-                          <TouchableOpacity
-                            accessibilityRole="button"
-                            onPress={() => openFieldEditor(row.editField)}
-                            style={styles.inlineEditButton}
-                            testID={`farm-edit-${row.editField}`}
-                          >
-                            <Text style={styles.inlineEditButtonText}>{row.missing ? 'Set' : 'Edit'}</Text>
-                          </TouchableOpacity>
-                        ) : 'mapAction' in row && row.mapAction ? (
-                          <TouchableOpacity
-                            accessibilityRole="button"
-                            onPress={() => router.push(`/farms-map/${farmId}` as never)}
-                            style={styles.inlineEditButton}
-                          >
-                            <Text style={styles.inlineEditButtonText}>Map</Text>
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
+              <FarmDetailsCard groups={detailGroups} />
               {saveMessage ? (
                 <View style={styles.savedNotice}>
                   <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />

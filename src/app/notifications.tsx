@@ -4,7 +4,10 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useEngagement } from '@/lib/hooks/use-engagement';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
+
+type TFunc = (key: string, params?: Record<string, string | number>) => string;
 
 type FeedItem = {
   id: string;
@@ -15,45 +18,40 @@ type FeedItem = {
   when: string | null;
 };
 
-function timeAgo(value?: string | null): string {
+function timeAgo(value: string | null, t: TFunc): string {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
   const diff = Date.now() - d.getTime();
   const day = 86_400_000;
-  if (diff < 3_600_000) return `${Math.max(1, Math.round(diff / 60_000))}m ago`;
-  if (diff < day) return `${Math.round(diff / 3_600_000)}h ago`;
-  if (diff < 7 * day) return `${Math.round(diff / day)}d ago`;
+  if (diff < 3_600_000) return t('notifications.minAgo', { n: Math.max(1, Math.round(diff / 60_000)) });
+  if (diff < day) return t('notifications.hoursAgo', { n: Math.round(diff / 3_600_000) });
+  if (diff < 7 * day) return t('notifications.daysAgoShort', { n: Math.round(diff / day) });
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 const REWARD_COPY: Record<string, { title: string; body: string }> = {
-  xp_threshold: {
-    title: 'Reward unlocked',
-    body: "You've earned enough XP to qualify for a partner input reward.",
-  },
-  streak_consistency: {
-    title: 'Consistency reward',
-    body: 'Your daily streak qualifies you for an extension program.',
-  },
+  xp_threshold: { title: 'notifications.rewardUnlocked', body: 'notifications.rewardUnlockedBody' },
+  streak_consistency: { title: 'notifications.consistencyReward', body: 'notifications.consistencyRewardBody' },
 };
 
 export default function NotificationsScreen() {
+  const { t } = useI18n();
   const { data: engagement } = useEngagement();
 
   const items: FeedItem[] = [];
 
   for (const ev of engagement?.reward_eligibility ?? []) {
     const copy = REWARD_COPY[ev.event_type] ?? {
-      title: 'Reward available',
-      body: 'You have a new reward to claim.',
+      title: 'notifications.rewardAvailable',
+      body: 'notifications.rewardAvailableBody',
     };
     items.push({
       id: `reward-${ev.event_type}-${ev.created_at}`,
       icon: 'gift-outline',
       tint: theme.colors.accent,
-      title: copy.title,
-      body: copy.body,
+      title: t(copy.title),
+      body: t(copy.body),
       when: ev.created_at,
     });
   }
@@ -63,8 +61,8 @@ export default function NotificationsScreen() {
       id: `ach-${a.achievement_key ?? a.name}`,
       icon: 'trophy-outline',
       tint: theme.colors.primary,
-      title: `Badge earned: ${a.name ?? 'Achievement'}`,
-      body: a.description ?? 'Keep it up!',
+      title: t('notifications.badgeEarned', { name: a.name ?? t('notifications.achievement') }),
+      body: a.description ?? t('notifications.keepItUp'),
       when: a.awarded_at,
     });
   }
@@ -77,7 +75,7 @@ export default function NotificationsScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={26} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Notifications</Text>
+        <Text style={styles.title}>{t('tabs.notifications')}</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -86,10 +84,8 @@ export default function NotificationsScreen() {
           <View style={styles.emptyIcon}>
             <Ionicons name="notifications-outline" size={32} color={theme.colors.primary} />
           </View>
-          <Text style={styles.emptyTitle}>You&apos;re all caught up</Text>
-          <Text style={styles.emptyBody}>
-            Rewards, badges, and farm alerts will show up here as you work through your season.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('notifications.allCaughtUp')}</Text>
+          <Text style={styles.emptyBody}>{t('notifications.emptyBody')}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
@@ -102,7 +98,7 @@ export default function NotificationsScreen() {
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.cardBody}>{item.body}</Text>
               </View>
-              {item.when ? <Text style={styles.cardWhen}>{timeAgo(item.when)}</Text> : null}
+              {item.when ? <Text style={styles.cardWhen}>{timeAgo(item.when, t)}</Text> : null}
             </View>
           ))}
         </ScrollView>

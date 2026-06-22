@@ -8,9 +8,11 @@ import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { TextField } from '@/components/forms/text-field';
 import { Screen } from '@/components/layout/screen';
 import { useAuth } from '@/lib/auth/provider';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 export default function LoginScreen() {
+  const { t } = useI18n();
   const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +25,7 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Sign in failed');
+      setError(nextError instanceof Error ? nextError.message : 'auth.signInFailed');
     } finally {
       setLoading(false);
     }
@@ -35,7 +37,7 @@ export default function LoginScreen() {
     try {
       await loginWithGoogle(idToken);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Google sign-in failed');
+      setError(nextError instanceof Error ? nextError.message : 'auth.googleSignInFailed');
     } finally {
       setLoading(false);
     }
@@ -44,38 +46,37 @@ export default function LoginScreen() {
   return (
     <Screen edges={['top', 'bottom']} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>Sign in</Text>
-        <Text style={styles.copy}>
-          Access your farms, offline logs, crop journeys, and field guidance.
-        </Text>
+        <Text style={styles.title}>{t('auth.signIn')}</Text>
+        <Text style={styles.copy}>{t('auth.signInSubtitle')}</Text>
       </View>
       <Card>
         <TextField
-          label="Email"
+          label={t('auth.email')}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
         />
         <TextField
-          label="Password"
+          label={t('auth.password')}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
         />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={styles.error}>{t(error)}</Text> : null}
         <Button
-          label={loading ? 'Signing in...' : 'Sign in'}
+          label={loading ? t('auth.signingIn') : t('auth.signIn')}
           disabled={loading}
           onPress={() => void submit()}
         />
         <GoogleSignInButton
+          label={t('auth.continueWithGoogle')}
           disabled={loading}
           onToken={(token) => void onGoogleToken(token)}
           onError={(message) => setError(message)}
         />
         <Button
-          label="Create account"
+          label={t('auth.createAccount')}
           variant="ghost"
           disabled={loading}
           onPress={() => router.push('/(auth)/register')}

@@ -51,11 +51,22 @@ function SectionLabel({ label }: { label: string }) {
   return <Text style={s.sectionLabel}>{label.toUpperCase()}</Text>;
 }
 
+// ─── Profile detail row ─────────────────────────────────────────────────────────
+
+function DetailRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={[s.detailRow, last && s.detailRowLast]}>
+      <Text style={s.detailLabel}>{label}</Text>
+      <Text style={s.detailValue} numberOfLines={1}>{value}</Text>
+    </View>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export function SettingsScreen() {
   const queryClient = useQueryClient();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, t } = useI18n();
   const { logout, user } = useAuth();
   const { queuedCount, conflictCount } = useSync();
   const [units, setUnits] = useState<'metric' | 'imperial'>('metric');
@@ -104,32 +115,49 @@ export function SettingsScreen() {
     .slice(0, 2)
     .join('');
 
+  const memberSince = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+    : '';
+
   return (
     <Screen edges={['bottom']} contentContainerStyle={s.content}>
 
       {/* ── Header ── */}
       <View style={s.pageHeader}>
-        <Text style={s.pageTitle}>Settings</Text>
+        <Text style={s.pageTitle}>{t('settings.title')}</Text>
       </View>
 
-      {/* ── Profile card ── */}
-      <TouchableOpacity style={s.profileCard} activeOpacity={0.88}>
+      {/* ── Profile summary ── */}
+      <View style={s.profileCard}>
         <View style={s.avatar}>
           <Text style={s.avatarText}>{initials}</Text>
         </View>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={s.profileName}>{user?.full_name ?? 'Farmer'}</Text>
+          <Text style={s.profileName}>{user?.full_name ?? t('settings.farmer')}</Text>
           <Text style={s.profileEmail}>{user?.email ?? ''}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={theme.colors.primary + '80'} />
-      </TouchableOpacity>
+      </View>
+
+      {/* ── Profile details ── */}
+      <View style={s.section}>
+        <SectionLabel label={t('settings.profile')} />
+        <View style={s.menuGroup}>
+          <DetailRow label={t('auth.fullName')} value={user?.full_name || t('common.notProvided')} />
+          <DetailRow label={t('auth.email')} value={user?.email || t('common.notProvided')} />
+          <DetailRow label={t('auth.phoneNumber')} value={user?.phone_number || t('common.notProvided')} />
+          <DetailRow label={t('farms.location')} value={user?.location || t('common.notProvided')} last />
+        </View>
+        {memberSince ? (
+          <Text style={s.memberSince}>{t('settings.memberSince', { date: memberSince })}</Text>
+        ) : null}
+      </View>
 
       {/* ── Preferences ── */}
       <View style={s.section}>
-        <SectionLabel label="Preferences" />
+        <SectionLabel label={t('settings.preferences')} />
         <View style={s.menuGroup}>
           <View style={s.menuHeader}>
-            <Text style={s.menuGroupTitle}>Language</Text>
+            <Text style={s.menuGroupTitle}>{t('settings.language')}</Text>
             <View style={s.toggleRow}>
               {(['en', 'sw'] as const).map((code, i) => (
                 <TouchableOpacity
@@ -138,7 +166,7 @@ export function SettingsScreen() {
                   onPress={() => void persistLocale(code)}
                 >
                   <Text style={[s.toggleBtnText, locale === code && s.toggleBtnTextActive]}>
-                    {code === 'en' ? 'English' : 'Kiswahili'}
+                    {code === 'en' ? t('settings.english') : t('settings.kiswahili')}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -146,7 +174,7 @@ export function SettingsScreen() {
           </View>
 
           <View style={[s.menuHeader, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: 14 }]}>
-            <Text style={s.menuGroupTitle}>Units</Text>
+            <Text style={s.menuGroupTitle}>{t('settings.units')}</Text>
             <View style={s.toggleRow}>
               {(['metric', 'imperial'] as const).map((u, i) => (
                 <TouchableOpacity
@@ -155,7 +183,7 @@ export function SettingsScreen() {
                   onPress={() => void persistUnits(u)}
                 >
                   <Text style={[s.toggleBtnText, units === u && s.toggleBtnTextActive]}>
-                    {u.charAt(0).toUpperCase() + u.slice(1)}
+                    {u === 'metric' ? t('settings.metric') : t('settings.imperial')}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -166,32 +194,30 @@ export function SettingsScreen() {
 
       {/* ── Offline state ── */}
       <View style={s.section}>
-        <SectionLabel label="Sync status" />
+        <SectionLabel label={t('settings.syncStatus')} />
         <View style={s.offlineCard}>
           <View style={s.offlineRow}>
-            <Pill label={`${queuedCount} queued`} tone={queuedCount > 0 ? 'warning' : 'success'} />
-            <Pill label={`${conflictCount} conflicts`} tone={conflictCount > 0 ? 'danger' : 'neutral'} />
+            <Pill label={t('settings.queued', { n: queuedCount })} tone={queuedCount > 0 ? 'warning' : 'success'} />
+            <Pill label={t('settings.conflicts', { n: conflictCount })} tone={conflictCount > 0 ? 'danger' : 'neutral'} />
           </View>
-          <Text style={s.offlineMeta}>
-            Field logs, farm edits, and task completions can be captured offline and synced later.
-          </Text>
+          <Text style={s.offlineMeta}>{t('settings.syncMeta')}</Text>
         </View>
       </View>
 
       {/* ── More ── */}
       <View style={s.section}>
-        <SectionLabel label="More" />
+        <SectionLabel label={t('settings.more')} />
         <View style={s.menuGroup}>
           <MenuItem
             icon="sparkles-outline"
-            label="AI field desk"
-            sublabel="Ask for crop advice, spray windows, and more"
+            label={t('settings.aiFieldDesk')}
+            sublabel={t('settings.aiFieldDeskSub')}
             onPress={() => router.push('/assistant')}
           />
           <MenuItem
             icon="map-outline"
-            label="Farm map"
-            sublabel="View and manage your mapped farms"
+            label={t('settings.farmMap')}
+            sublabel={t('settings.farmMapSub')}
             onPress={() => router.push('/(tabs)/journey')}
           />
         </View>
@@ -199,21 +225,21 @@ export function SettingsScreen() {
 
       {/* ── App info ── */}
       <View style={s.section}>
-        <SectionLabel label="Support" />
+        <SectionLabel label={t('settings.support')} />
         <View style={s.menuGroup}>
-          <MenuItem icon="information-circle-outline" label="About Ecofy" sublabel="Offline-first farm intelligence" />
+          <MenuItem icon="information-circle-outline" label={t('settings.aboutEcofy')} sublabel={t('settings.aboutEcofySub')} />
         </View>
       </View>
 
       {/* ── Sign out ── */}
       <Button
-        label={loggingOut ? 'Signing out…' : 'Sign out'}
+        label={loggingOut ? t('settings.signingOut') : t('settings.signOut')}
         variant="danger"
         disabled={loggingOut}
         onPress={() => void handleLogout()}
       />
 
-      <Text style={s.version}>Ecofy Mobile · offline-first build</Text>
+      <Text style={s.version}>{t('settings.versionLine')}</Text>
     </Screen>
   );
 }
@@ -252,6 +278,21 @@ const s = StyleSheet.create({
   avatarText: { color: '#fff', fontSize: 20, fontWeight: '800' },
   profileName: { fontSize: 16, fontWeight: '800', color: theme.colors.text },
   profileEmail: { fontSize: 13, color: theme.colors.textMuted },
+
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.border,
+  },
+  detailRowLast: { borderBottomWidth: 0 },
+  detailLabel: { fontSize: 13, color: theme.colors.textMuted },
+  detailValue: { flex: 1, textAlign: 'right', fontSize: 14, fontWeight: '600', color: theme.colors.text },
+  memberSince: { fontSize: 12, color: theme.colors.textMuted, paddingHorizontal: 4 },
 
   section: { gap: 10 },
   sectionLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, color: theme.colors.textMuted },

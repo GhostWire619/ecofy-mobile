@@ -19,11 +19,13 @@ import type { AchievementBadge } from '@/lib/domain/types';
 import { useTaskActions } from '@/lib/hooks/use-task-actions';
 import { useTaskCompletion } from '@/lib/hooks/use-task-completion';
 import { useEngagement } from '@/lib/hooks/use-engagement';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 type JourneyTab = 'milestones' | 'tasks';
 
 export function JourneyScreen() {
+  const { t } = useI18n();
   const { data: engagement } = useEngagement();
   const [celebrating, setCelebrating] = useState<AchievementBadge | null>(null);
   const [activeTab, setActiveTab] = useState<JourneyTab>('tasks');
@@ -83,8 +85,8 @@ export function JourneyScreen() {
     return (
       <Screen>
         <EmptyState
-          title="No active journey"
-          description="Start a crop journey during onboarding to unlock stages, tasks, and milestone tracking."
+          title={t('journey.noActiveJourney')}
+          description={t('journey.noActiveJourneyDesc')}
         />
       </Screen>
     );
@@ -126,7 +128,7 @@ export function JourneyScreen() {
               ) : null}
             </TouchableOpacity>
             <Text style={styles.copy}>
-              {journey.variety ?? 'Local variety'} • planted {journey.planting_date}
+              {t('journey.varietyPlanted', { variety: journey.variety ?? t('journey.localVariety'), date: journey.planting_date })}
             </Text>
           </View>
           <Pill label={`${Math.round(journey.progress_percentage)}%`} tone="info" />
@@ -150,9 +152,9 @@ export function JourneyScreen() {
           <View style={styles.yieldRow}>
             <Ionicons name="trending-up" size={16} color={theme.colors.success} />
             <Text style={styles.yieldText}>
-              On track for ~{journey.predicted_yield.toFixed(1)} tons/ha
+              {t('journey.onTrackYield', { n: journey.predicted_yield.toFixed(1) })}
             </Text>
-            <Text style={styles.copySmall}>· harvest {journey.expected_harvest_date}</Text>
+            <Text style={styles.copySmall}>{t('journey.harvestOn', { date: journey.expected_harvest_date })}</Text>
           </View>
         )}
       </Card>
@@ -170,7 +172,7 @@ export function JourneyScreen() {
             color={activeTab === 'tasks' ? '#fff' : theme.colors.textMuted}
           />
           <Text style={[styles.journeyTabText, activeTab === 'tasks' && styles.journeyTabTextActive]}>
-            Tasks
+            {t('nav.tasks')}
           </Text>
           <View style={[styles.journeyTabCount, activeTab === 'tasks' && styles.journeyTabCountActive]}>
             <Text style={[styles.journeyTabCountText, activeTab === 'tasks' && styles.journeyTabCountTextActive]}>
@@ -190,7 +192,7 @@ export function JourneyScreen() {
             color={activeTab === 'milestones' ? '#fff' : theme.colors.textMuted}
           />
           <Text style={[styles.journeyTabText, activeTab === 'milestones' && styles.journeyTabTextActive]}>
-            Milestones
+            {t('nav.milestones')}
           </Text>
           <View style={[styles.journeyTabCount, activeTab === 'milestones' && styles.journeyTabCountActive]}>
             <Text style={[styles.journeyTabCountText, activeTab === 'milestones' && styles.journeyTabCountTextActive]}>
@@ -207,14 +209,14 @@ export function JourneyScreen() {
             <Ionicons name="flag-outline" size={18} color={theme.colors.primary} />
           </View>
           <View style={styles.sectionHeadingCopy}>
-            <Text style={styles.sectionTitle}>Milestones</Text>
-            <Text style={styles.sectionSubtitle}>Important steps in this crop journey</Text>
+            <Text style={styles.sectionTitle}>{t('nav.milestones')}</Text>
+            <Text style={styles.sectionSubtitle}>{t('journey.milestonesSub')}</Text>
           </View>
         </View>
 
         {orderedMilestones.length === 0 ? (
           <Card>
-            <Text style={styles.copy}>Milestones will appear when the crop plan is ready.</Text>
+            <Text style={styles.copy}>{t('journey.milestonesEmpty')}</Text>
           </Card>
         ) : (
           orderedMilestones.map((milestone) => {
@@ -239,7 +241,7 @@ export function JourneyScreen() {
                     <Ionicons name="checkmark" size={16} color="#fff" />
                   ) : (
                     <>
-                      <Text style={styles.milestoneWeekLabel}>WEEK</Text>
+                      <Text style={styles.milestoneWeekLabel}>{t('journey.weekLabel')}</Text>
                       <Text style={styles.milestoneWeekNumber}>{milestone.week_number}</Text>
                     </>
                   )}
@@ -255,7 +257,7 @@ export function JourneyScreen() {
                           month: 'short',
                           day: 'numeric',
                         })
-                      : 'Date not set'}
+                      : t('journey.dateNotSet')}
                     {milestone.end_date
                       ? ` – ${new Date(milestone.end_date).toLocaleDateString(undefined, {
                           month: 'short',
@@ -284,17 +286,17 @@ export function JourneyScreen() {
             <Ionicons name="checkbox-outline" size={18} color={theme.colors.primary} />
           </View>
           <View style={styles.sectionHeadingCopy}>
-            <Text style={styles.sectionTitle}>Tasks</Text>
-            <Text style={styles.sectionSubtitle}>Work to do on the farm</Text>
+            <Text style={styles.sectionTitle}>{t('nav.tasks')}</Text>
+            <Text style={styles.sectionSubtitle}>{t('journey.tasksSub')}</Text>
           </View>
         </View>
 
         <Text style={styles.groupTitle}>
-          Now {activeTasks.length > 0 ? `(${activeTasks.length})` : ''}
+          {t('journey.now')} {activeTasks.length > 0 ? `(${activeTasks.length})` : ''}
         </Text>
         {activeTasks.length === 0 && (
           <Card>
-            <Text style={styles.copy}>Nothing to do right now — you&apos;re on track. 🌱</Text>
+            <Text style={styles.copy}>{t('journey.nothingToDo')}</Text>
           </Card>
         )}
         {activeTasks.map((task) => (
@@ -309,7 +311,7 @@ export function JourneyScreen() {
                 activeOpacity={0.85}
               >
                 <Ionicons name="checkmark-circle" size={24} color="#fff" />
-                <Text style={styles.swipeDoneText}>Done</Text>
+                <Text style={styles.swipeDoneText}>{t('common.done')}</Text>
               </TouchableOpacity>
             )}
             renderLeftActions={() => (
@@ -319,7 +321,7 @@ export function JourneyScreen() {
                 activeOpacity={0.85}
               >
                 <Ionicons name="ellipsis-horizontal-circle-outline" size={24} color="#fff" />
-                <Text style={styles.swipeDoneText}>Options</Text>
+                <Text style={styles.swipeDoneText}>{t('journey.options')}</Text>
               </TouchableOpacity>
             )}
           >
@@ -357,7 +359,7 @@ export function JourneyScreen() {
 
         {upcomingTasks.length > 0 && (
           <View style={styles.taskGroup}>
-          <Text style={styles.groupTitle}>Coming up ({upcomingTasks.length})</Text>
+          <Text style={styles.groupTitle}>{t('journey.comingUp')} ({upcomingTasks.length})</Text>
           {upcomingTasks.map((task) => (
             <View key={task.id} style={styles.upcomingRow}>
               <Ionicons name="time-outline" size={16} color={theme.colors.textMuted} />
@@ -402,7 +404,7 @@ export function JourneyScreen() {
         <Pressable style={styles.switcherBackdrop} onPress={() => setSwitcherOpen(false)} />
         <View style={styles.switcherSheet}>
           <View style={styles.grabber} />
-          <Text style={styles.switcherTitle}>Switch journey</Text>
+          <Text style={styles.switcherTitle}>{t('journey.switchJourney')}</Text>
           {journeys.map((j) => {
             const isCurrent = j.id === journey.id;
             return (

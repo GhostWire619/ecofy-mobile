@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/core/button';
 import { decodeInstructions } from '@/lib/db/repositories';
 import type { TaskRecord } from '@/lib/domain/types';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 export type CompletionProof = {
@@ -47,6 +48,7 @@ export function TaskCompletionSheet({
   onConfirm: (proof: CompletionProof) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [note, setNote] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -113,20 +115,18 @@ export function TaskCompletionSheet({
             showsVerticalScrollIndicator={false}
           >
             <Text style={styles.title}>{task.title}</Text>
-            <Text style={styles.subtitle}>Confirm what you did before marking this done.</Text>
+            <Text style={styles.subtitle}>{t('taskSheet.confirmWhatDid')}</Text>
 
             {isEarly ? (
               <View style={styles.warnBanner}>
                 <Ionicons name="time-outline" size={16} color={theme.colors.warning} />
-                <Text style={styles.warnText}>
-                  This isn&apos;t due until {task.due_date}. You can still mark it done.
-                </Text>
+                <Text style={styles.warnText}>{t('taskSheet.notDueUntil', { date: task.due_date ?? '' })}</Text>
               </View>
             ) : null}
 
             {steps.length > 0 ? (
               <View style={styles.steps}>
-                <Text style={styles.sectionLabel}>Steps</Text>
+                <Text style={styles.sectionLabel}>{t('taskSheet.steps')}</Text>
                 {steps.map((step, i) => {
                   const on = checked.has(i);
                   return (
@@ -149,7 +149,7 @@ export function TaskCompletionSheet({
             ) : null}
 
             {/* Optional proof */}
-            <Text style={styles.sectionLabel}>Add proof (optional)</Text>
+            <Text style={styles.sectionLabel}>{t('taskSheet.addProof')}</Text>
             {photoUri ? (
               <View style={styles.photoWrap}>
                 <Image source={{ uri: photoUri }} style={styles.photo} contentFit="cover" />
@@ -161,18 +161,18 @@ export function TaskCompletionSheet({
               <View style={styles.photoRow}>
                 <TouchableOpacity style={styles.photoBtn} onPress={() => addPhoto('camera')} activeOpacity={0.8}>
                   <Ionicons name="camera-outline" size={20} color={theme.colors.primary} />
-                  <Text style={styles.photoBtnText}>Photo</Text>
+                  <Text style={styles.photoBtnText}>{t('taskSheet.photo')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.photoBtn} onPress={() => addPhoto('library')} activeOpacity={0.8}>
                   <Ionicons name="images-outline" size={20} color={theme.colors.primary} />
-                  <Text style={styles.photoBtnText}>Gallery</Text>
+                  <Text style={styles.photoBtnText}>{t('taskSheet.gallery')}</Text>
                 </TouchableOpacity>
               </View>
             )}
 
             <TextInput
               style={styles.note}
-              placeholder="Add a note (e.g. what you observed, amount used)…"
+              placeholder={t('taskSheet.notePlaceholder')}
               placeholderTextColor={theme.colors.textMuted}
               value={note}
               onChangeText={setNote}
@@ -182,15 +182,13 @@ export function TaskCompletionSheet({
 
           <View style={styles.actions}>
             <View style={{ flex: 1 }}>
-              <Button label="Cancel" variant="ghost" onPress={onCancel} />
+              <Button label={t('common.cancel')} variant="ghost" onPress={onCancel} />
             </View>
             <View style={{ flex: 1.4 }}>
               <Button
-                label={`Confirm done · +${task.xp_value ?? 10} XP`}
+                label={t('taskSheet.confirmDone', { xp: task.xp_value ?? 10 })}
                 onPress={confirm}
-                accessibilityHint={
-                  allStepsChecked ? undefined : 'You can confirm without ticking every step.'
-                }
+                accessibilityHint={allStepsChecked ? undefined : t('taskSheet.confirmHint')}
               />
             </View>
           </View>

@@ -20,6 +20,7 @@ import { mobileApi } from '@/lib/api/mobile';
 import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord } from '@/lib/domain/types';
 import { createId } from '@/lib/utils/id';
 import { toAbsoluteUrl } from '@/lib/utils/url';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 const OPERATION_TYPES = [
@@ -98,6 +99,7 @@ export function AddLogSheet({
   onSaved: () => void;
   lockedFarmId?: string;
 }) {
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const [farmId, setFarmId] = useState(lockedFarmId ?? farmOptions[0]?.id ?? '');
   const [opType, setOpType] = useState<OperationType>('Scouting');
@@ -114,14 +116,14 @@ export function AddLogSheet({
 
   async function addPhotosFromLibrary() {
     if (photos.length >= 3) {
-      setError('You can attach up to 3 photos.');
+      setError('logbook.errMaxPhotos');
       return;
     }
 
     setError(null);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      setError('Photo library permission is required to add images.');
+      setError('logbook.errPhotoPerm');
       return;
     }
 
@@ -139,14 +141,14 @@ export function AddLogSheet({
 
   async function takePhoto() {
     if (photos.length >= 3) {
-      setError('You can attach up to 3 photos.');
+      setError('logbook.errMaxPhotos');
       return;
     }
 
     setError(null);
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      setError('Camera permission is required to take a photo.');
+      setError('logbook.errCameraPerm');
       return;
     }
 
@@ -166,7 +168,7 @@ export function AddLogSheet({
 
   async function save() {
     if (!farmId || !selectedFarm) {
-      setError('Choose a farm first.');
+      setError('logbook.errChooseFarm');
       return;
     }
     setSaving(true);
@@ -196,7 +198,7 @@ export function AddLogSheet({
       await mobileApi.syncLog({ log, images });
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed.');
+      setError(err instanceof Error ? err.message : 'logbook.errSaveFailed');
     } finally {
       setSaving(false);
     }
@@ -204,31 +206,31 @@ export function AddLogSheet({
 
   return (
     <View style={sheet.overlay}>
-      <View style={[sheet.panel, { paddingBottom: insets.bottom + 20, paddingTop: insets.top + 8 }]}>
+      <View style={[sheet.panel, { paddingBottom: insets.bottom + 12 }]}>
         <View style={sheet.formHeader}>
           <TouchableOpacity onPress={onClose} style={sheet.backBtn}>
             <Ionicons name="chevron-back" size={18} color={theme.colors.textMuted} />
-            <Text style={sheet.backText}>Back</Text>
+            <Text style={sheet.backText}>{t('common.back')}</Text>
           </TouchableOpacity>
-          <Text style={sheet.headerTitle}>New Note</Text>
+          <Text style={sheet.headerTitle}>{t('logbook.newNote')}</Text>
           <TouchableOpacity onPress={() => void save()} disabled={saving} style={[sheet.saveBtn, saving && sheet.saveBtnDisabled]}>
-            <Text style={sheet.saveBtnText}>{saving ? 'Saving…' : 'Save'}</Text>
+            <Text style={sheet.saveBtnText}>{saving ? t('common.saving') : t('common.save')}</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
           <View style={sheet.body}>
             <View style={sheet.field}>
-              <Text style={sheet.fieldLabel}>IMAGES</Text>
-              <Text style={sheet.fieldHint}>Attach up to 3 photos to this log.</Text>
+              <Text style={sheet.fieldLabel}>{t('logbook.images')}</Text>
+              <Text style={sheet.fieldHint}>{t('logbook.attachUpTo3')}</Text>
               <View style={sheet.imageActionRow}>
                 <TouchableOpacity style={sheet.imageActionButton} onPress={() => void addPhotosFromLibrary()}>
                   <Ionicons name="images-outline" size={18} color={theme.colors.text} />
-                  <Text style={sheet.imageActionText}>Add Photo</Text>
+                  <Text style={sheet.imageActionText}>{t('logbook.addPhoto')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={sheet.imageActionButton} onPress={() => void takePhoto()}>
                   <Ionicons name="camera-outline" size={18} color={theme.colors.text} />
-                  <Text style={sheet.imageActionText}>Take Photo</Text>
+                  <Text style={sheet.imageActionText}>{t('logbook.takePhoto')}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -248,14 +250,14 @@ export function AddLogSheet({
 
             {!lockedFarmId ? (
               <View style={sheet.field}>
-                <Text style={sheet.fieldSubLabel}>Farm</Text>
+                <Text style={sheet.fieldSubLabel}>{t('common.farm')}</Text>
                 <TouchableOpacity
                   style={sheet.selectField}
                   onPress={() => setIsFarmMenuOpen((current) => !current)}
                   activeOpacity={0.85}
                 >
                   <Text style={[sheet.selectFieldText, !selectedFarm && sheet.selectPlaceholder]}>
-                    {selectedFarm?.name ?? 'Choose farm'}
+                    {selectedFarm?.name ?? t('logs.chooseFarm')}
                   </Text>
                   <Ionicons name={isFarmMenuOpen ? 'chevron-up' : 'chevron-down'} size={18} color={theme.colors.textMuted} />
                 </TouchableOpacity>
@@ -283,7 +285,7 @@ export function AddLogSheet({
             ) : null}
 
             <View style={sheet.field}>
-              <Text style={sheet.fieldSubLabel}>Activity</Text>
+              <Text style={sheet.fieldSubLabel}>{t('logs.activity')}</Text>
               <View style={sheet.opGrid}>
                 {OPERATION_TYPES.map((op) => (
                   <TouchableOpacity
@@ -296,17 +298,19 @@ export function AddLogSheet({
                       size={14}
                       color={opType === op ? theme.colors.primary : theme.colors.textMuted}
                     />
-                    <Text style={[sheet.opPillText, opType === op && sheet.opPillTextActive]}>{op}</Text>
+                    <Text style={[sheet.opPillText, opType === op && sheet.opPillTextActive]}>
+                      {t(`operations.${op.toLowerCase()}`)}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
 
             <View style={sheet.field}>
-              <Text style={sheet.fieldSubLabel}>Notes</Text>
+              <Text style={sheet.fieldSubLabel}>{t('logbook.notes')}</Text>
               <TextInput
                 style={sheet.textarea}
-                placeholder="What did you do? Any observations..."
+                placeholder={t('logs.notesPlaceholder')}
                 placeholderTextColor={theme.colors.textMuted}
                 value={notes}
                 onChangeText={setNotes}
@@ -317,7 +321,7 @@ export function AddLogSheet({
             </View>
 
             <View style={sheet.field}>
-              <Text style={sheet.fieldSubLabel}>Cost (optional)</Text>
+              <Text style={sheet.fieldSubLabel}>{t('logs.costOptional')}</Text>
               <TextInput
                 style={sheet.input}
                 placeholder="0 TZS"
@@ -328,7 +332,7 @@ export function AddLogSheet({
               />
             </View>
 
-            {error ? <Text style={sheet.error}>{error}</Text> : null}
+            {error ? <Text style={sheet.error}>{t(error)}</Text> : null}
           </View>
         </ScrollView>
       </View>
@@ -337,6 +341,7 @@ export function AddLogSheet({
 }
 
 export function LogbookScreen() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const [showAdd, setShowAdd] = useState(false);
@@ -399,25 +404,23 @@ export function LogbookScreen() {
         {isLoading ? (
           <View style={s.centerState}>
             <ActivityIndicator color={theme.colors.primary} />
-            <Text style={s.loadingText}>Loading notes…</Text>
+            <Text style={s.loadingText}>{t('logbook.loadingNotes')}</Text>
           </View>
         ) : isError ? (
           <View style={s.emptyState}>
             <Ionicons name="cloud-offline-outline" size={40} color={theme.colors.textMuted} />
-            <Text style={s.emptyTitle}>Could not load notes</Text>
-            <Text style={s.emptyText}>Check your connection and try again.</Text>
+            <Text style={s.emptyTitle}>{t('logbook.couldNotLoad')}</Text>
+            <Text style={s.emptyText}>{t('logbook.checkConnection')}</Text>
           </View>
         ) : !data?.logs.length ? (
           <View style={s.emptyState}>
             <Ionicons name="document-text-outline" size={40} color={theme.colors.textMuted} />
-            <Text style={s.emptyTitle}>No notes yet</Text>
-            <Text style={s.emptyText}>
-              Tap + to add your first note — what you did, observed, or harvested.
-            </Text>
+            <Text style={s.emptyTitle}>{t('logbook.noNotesYet')}</Text>
+            <Text style={s.emptyText}>{t('logbook.noNotesDesc')}</Text>
           </View>
         ) : (
           <View style={s.logList}>
-            <Text style={s.listLabel}>RECENT NOTES · {data.logs.length}</Text>
+            <Text style={s.listLabel}>{t('logbook.recentNotes')} · {data.logs.length}</Text>
             {data.logs.map((log) => {
               const opIcon = OP_ICONS[log.operation_type as OperationType] ?? 'document-text-outline';
               const thumb = noteThumbUri(log);
@@ -690,7 +693,8 @@ const sheet = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
   },
   header: {
     flexDirection: 'row',
@@ -701,42 +705,42 @@ const sheet = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e1ddcf',
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, minWidth: 60 },
-  backText: { fontSize: 14, fontWeight: '500', color: theme.colors.textMuted },
-  headerTitle: { fontSize: 24, fontWeight: '700', color: theme.colors.text },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, minWidth: 56 },
+  backText: { fontSize: 13, fontWeight: '500', color: theme.colors.textMuted },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text },
   saveBtn: {
-    minWidth: 76,
+    minWidth: 66,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 40,
-    borderRadius: 20,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: theme.colors.primary,
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
   },
   saveBtnDisabled: {
     opacity: 0.6,
   },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  saveBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
-  body: { paddingHorizontal: 16, paddingBottom: 12, gap: 22 },
-  field: { gap: 10 },
-  fieldLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 1.2, color: theme.colors.textMuted },
-  fieldHint: { fontSize: 14, color: theme.colors.textMuted },
-  fieldSubLabel: { fontSize: 14, color: theme.colors.text },
+  body: { paddingHorizontal: 16, paddingBottom: 10, gap: 16 },
+  field: { gap: 7 },
+  fieldLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, color: theme.colors.textMuted },
+  fieldHint: { fontSize: 12, color: theme.colors.textMuted },
+  fieldSubLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.text },
 
   imageActionRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   imageActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    height: 42,
-    borderRadius: 21,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
   },
-  imageActionText: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
+  imageActionText: { fontSize: 13, fontWeight: '600', color: theme.colors.text },
   photoRow: { gap: 10 },
   photoCard: {
     position: 'relative',
@@ -765,18 +769,18 @@ const sheet = StyleSheet.create({
   },
 
   selectField: {
-    height: 52,
-    borderRadius: 26,
+    height: 46,
+    borderRadius: 23,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   selectFieldText: {
-    fontSize: 15,
+    fontSize: 13,
     color: theme.colors.text,
   },
   selectPlaceholder: {
@@ -825,37 +829,37 @@ const sheet = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.surface,
   },
   opPillActive: { borderColor: theme.colors.primary, backgroundColor: '#eaf8ef' },
-  opPillText: { fontSize: 15, fontWeight: '500', color: theme.colors.textMuted },
-  opPillTextActive: { fontSize: 15, fontWeight: '700', color: theme.colors.primary },
+  opPillText: { fontSize: 13, fontWeight: '500', color: theme.colors.textMuted },
+  opPillTextActive: { fontSize: 13, fontWeight: '700', color: theme.colors.primary },
 
   textarea: {
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 24,
+    borderRadius: 18,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    fontSize: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 13,
     color: theme.colors.text,
-    minHeight: 126,
+    minHeight: 96,
     textAlignVertical: 'top',
   },
   input: {
-    height: 52,
+    height: 46,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: 26,
+    borderRadius: 23,
     backgroundColor: theme.colors.surface,
-    paddingHorizontal: 18,
-    fontSize: 15,
+    paddingHorizontal: 14,
+    fontSize: 13,
     color: theme.colors.text,
   },
   error: { color: '#d43c2e', fontSize: 13 },

@@ -10,8 +10,9 @@ import { Screen, Section } from '@/components/layout/screen';
 import { ApiError } from '@/lib/api/client';
 import { mobileApi } from '@/lib/api/mobile';
 import { cropCatalog, getCropCatalogItem } from '@/lib/constants/crops';
-import { journeyRepository } from '@/lib/db/repositories';
+import { farmRepository, journeyRepository } from '@/lib/db/repositories';
 import type { DiagnosisResult, LogImageRecord, LogRecord } from '@/lib/domain/types';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 import { tapHaptic } from '@/lib/utils/haptics';
 import { createId } from '@/lib/utils/id';
@@ -59,28 +60,31 @@ function composeScanNote(result: DiagnosisResult): string {
   return lines.join('\n');
 }
 
+// These return i18n keys (resolved with t() at the call site). For an unmapped
+// backend message we return it raw — t() passes unknown keys through unchanged.
 function scanErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 408) return 'The scan took too long. Try again on a stronger connection.';
-    if (error.status === 0) return 'No internet connection. Connect and try the scan again.';
-    if (error.status >= 500) return 'The diagnosis service is busy right now. Please try again in a moment.';
-    if (error.status === 413) return 'That photo was too large. Try taking a new, closer photo.';
+    if (error.status === 408) return 'scan.errTimeout';
+    if (error.status === 0) return 'scan.errNoInternet';
+    if (error.status >= 500) return 'scan.errBusy';
+    if (error.status === 413) return 'scan.errTooLarge';
     return error.message;
   }
-  return "Couldn't analyze the photo. Check your connection and try again.";
+  return 'scan.errGeneric';
 }
 
 function saveErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
-    if (error.status === 0) return 'No internet connection. Connect and try saving again.';
-    if (error.status >= 500) return "Couldn't save right now — the service is busy. Try again in a moment.";
-    if (error.status === 413) return 'That photo was too large to upload. Try a smaller one.';
+    if (error.status === 0) return 'scan.saveErrNoInternet';
+    if (error.status >= 500) return 'scan.saveErrBusy';
+    if (error.status === 413) return 'scan.saveErrTooLarge';
     return error.message;
   }
-  return "Couldn't save to your logbook. Check your connection and try again.";
+  return 'scan.saveErrGeneric';
 }
 
 export function ScanScreen() {
+  const { t } = useI18n();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('image/jpeg');
   const [cropName, setCropName] = useState<string | null>(null);
@@ -90,7 +94,16 @@ export function ScanScreen() {
 
   const { data: journey } = useQuery({
     queryKey: ['scan-active-journey'],
-    queryFn: () => journeyRepository.getActiveJourney(),
+    // Target the farm the user is actually working on: the selected farm's
+    // active journey, falling back to any active journey if none is selected.
+    queryFn: async () => {
+      const activeFarmId = await farmRepository.getSelectedFarmId();
+      if (activeFarmId) {
+        const forFarm = await journeyRepository.getActiveJourneyForFarm(activeFarmId);
+        if (forFarm) return forFarm;
+      }
+      return journeyRepository.getActiveJourney();
+    },
   });
 
   const journeyCropName = journey ? getCropCatalogItem(journey.crop_id).name : null;
@@ -204,15 +217,13 @@ export function ScanScreen() {
   return (
     <Screen contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>Scan your crop</Text>
-        <Text style={styles.subtitle}>
-          Take a clear photo of an affected leaf, stem, or pest. We&apos;ll identify the problem and what to do.
-        </Text>
+        <Text style={styles.title}>{t('scan.title')}</Text>
+        <Text style={styles.subtitle}>{t('scan.subtitle')}</Text>
       </View>
 
       {/* Crop selector — defaults to your active journey's crop */}
       <View style={styles.cropPickerWrap}>
-        <Text style={styles.cropLabel}>Crop</Text>
+        <Text style={styles.cropLabel}>{t('scan.crop')}</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -240,11 +251,11 @@ export function ScanScreen() {
         <View style={styles.pickRow}>
           <TouchableOpacity style={styles.pickBtn} onPress={() => pick('camera')} activeOpacity={0.85}>
             <Ionicons name="camera" size={26} color={theme.colors.primary} />
-            <Text style={styles.pickLabel}>Take photo</Text>
+            <Text style={styles.pickLabel}>{t('scan.takePhoto')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.pickBtn} onPress={() => pick('library')} activeOpacity={0.85}>
             <Ionicons name="images" size={26} color={theme.colors.primary} />
-            <Text style={styles.pickLabel}>From gallery</Text>
+            <Text style={styles.pickLabel}>{t('scan.fromGallery')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -255,14 +266,14 @@ export function ScanScreen() {
             <Card>
               <View style={styles.loadingRow}>
                 <ActivityIndicator color={theme.colors.primary} />
-                <Text style={styles.loadingText}>Analyzing your crop…</Text>
+                <Text style={styles.loadingText}>{t('scan.analyzing')}</Text>
               </View>
             </Card>
           )}
 
           {diagnoseMutation.isError && (
             <Card>
-              <Text style={styles.errorText}>{scanErrorMessage(diagnoseMutation.error)}</Text>
+              <Text style={styles.errorText}>{t(scanErrorMessage(diagnoseMutation.error))}</Text>
               <TouchableOpacity
                 style={styles.retryInline}
                 onPress={() =>
@@ -270,7 +281,7 @@ export function ScanScreen() {
                 }
               >
                 <Ionicons name="refresh" size={16} color={theme.colors.primary} />
-                <Text style={styles.retryInlineText}>Try again</Text>
+                <Text style={styles.retryInlineText}>{t('common.tryAgain')}</Text>
               </TouchableOpacity>
             </Card>
           )}
@@ -290,16 +301,16 @@ export function ScanScreen() {
                 color={savedToLog ? theme.colors.success : theme.colors.primary}
               />
               <Text style={[styles.saveBtnText, savedToLog && styles.saveBtnTextDone]}>
-                {savedToLog ? 'Saved to logbook' : saving ? 'Saving…' : 'Save to logbook'}
+                {savedToLog ? t('scan.savedToLogbook') : saving ? t('common.saving') : t('scan.saveToLogbook')}
               </Text>
             </TouchableOpacity>
           ) : null}
 
-          {saveError ? <Text style={styles.saveError}>{saveError}</Text> : null}
+          {saveError ? <Text style={styles.saveError}>{t(saveError)}</Text> : null}
 
           <TouchableOpacity style={styles.retakeBtn} onPress={reset} activeOpacity={0.85}>
             <Ionicons name="refresh" size={18} color="#fff" />
-            <Text style={styles.retakeText}>Scan another</Text>
+            <Text style={styles.retakeText}>{t('scan.scanAnother')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -308,17 +319,18 @@ export function ScanScreen() {
 }
 
 function DiagnosisCard({ result }: { result: DiagnosisResult }) {
+  const { t } = useI18n();
   if (!result.detected) {
     return (
       <Card>
         <View style={styles.resultHead}>
           <Ionicons name="leaf" size={22} color={theme.colors.success} />
           <Text style={styles.resultTitle}>
-            {result.label === 'healthy' ? 'Looks healthy' : 'No clear diagnosis'}
+            {result.label === 'healthy' ? t('scan.looksHealthy') : t('scan.noClearDiagnosis')}
           </Text>
         </View>
         <Text style={styles.resultBody}>
-          {result.description ?? 'Try a clearer, closer photo of the affected area in good light.'}
+          {result.description ?? t('scan.healthyHint')}
         </Text>
       </Card>
     );
@@ -343,7 +355,7 @@ function DiagnosisCard({ result }: { result: DiagnosisResult }) {
 
       {result.recommended_actions.length > 0 && (
         <Section>
-          <Text style={styles.actionsTitle}>What to do</Text>
+          <Text style={styles.actionsTitle}>{t('scan.whatToDo')}</Text>
           {result.recommended_actions.map((a, i) => (
             <View key={i} style={styles.actionRow}>
               <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
@@ -351,8 +363,11 @@ function DiagnosisCard({ result }: { result: DiagnosisResult }) {
                 <Text style={styles.actionText}>{a.action_en ?? a.name}</Text>
                 {a.cost_tzs_per_ha_min != null && (
                   <Text style={styles.actionCost}>
-                    ~{a.cost_tzs_per_ha_min.toLocaleString()}–{(a.cost_tzs_per_ha_max ?? a.cost_tzs_per_ha_min).toLocaleString()} TZS/ha
-                    {a.efficacy != null ? ` · ${Math.round(a.efficacy * 100)}% effective` : ''}
+                    {t('scan.costPerHa', {
+                      min: a.cost_tzs_per_ha_min.toLocaleString(),
+                      max: (a.cost_tzs_per_ha_max ?? a.cost_tzs_per_ha_min).toLocaleString(),
+                    })}
+                    {a.efficacy != null ? t('scan.effectiveSuffix', { pct: Math.round(a.efficacy * 100) }) : ''}
                   </Text>
                 )}
               </View>
@@ -365,7 +380,7 @@ function DiagnosisCard({ result }: { result: DiagnosisResult }) {
         <View style={styles.costBanner}>
           <Ionicons name="cash-outline" size={16} color={theme.colors.primaryDark} />
           <Text style={styles.costBannerText}>
-            Estimated control cost ~{result.estimated_control_cost_tzs.toLocaleString()} TZS/ha
+            {t('scan.estControlCost', { cost: result.estimated_control_cost_tzs.toLocaleString() })}
           </Text>
         </View>
       )}

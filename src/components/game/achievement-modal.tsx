@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import type { AchievementBadge } from '@/lib/domain/types';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 const TIER_COLOR: Record<string, string> = {
@@ -34,6 +35,7 @@ export function AchievementModal({
   badge: AchievementBadge | null;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const scale = useSharedValue(0.5);
   const rotate = useSharedValue(-0.15);
   const glow = useSharedValue(0);
@@ -71,7 +73,7 @@ export function AchievementModal({
     <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <View style={styles.card}>
-          <Text style={styles.kicker}>ACHIEVEMENT UNLOCKED</Text>
+          <Text style={styles.kicker}>{t('achievement.unlocked')}</Text>
 
           <View style={styles.medalWrap}>
             <Animated.View style={[styles.glow, { backgroundColor: tierColor }, glowStyle]} />
@@ -84,7 +86,7 @@ export function AchievementModal({
             </Animated.View>
           </View>
 
-          <Text style={styles.name}>{badge.name ?? 'New badge'}</Text>
+          <Text style={styles.name}>{badge.name ?? t('achievement.newBadge')}</Text>
           {badge.description ? <Text style={styles.desc}>{badge.description}</Text> : null}
           {badge.badge_tier ? (
             <View style={[styles.tierPill, { backgroundColor: tierColor + '22' }]}>
@@ -95,7 +97,7 @@ export function AchievementModal({
           ) : null}
 
           <Pressable style={styles.button} onPress={onClose}>
-            <Text style={styles.buttonText}>Nice!</Text>
+            <Text style={styles.buttonText}>{t('achievement.nice')}</Text>
           </Pressable>
         </View>
       </Pressable>

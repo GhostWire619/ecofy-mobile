@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from '@/lib/auth/provider';
 import { farmRepository, INTRO_SEEN_KEY, prefsRepository } from '@/lib/db/repositories';
 import { I18nProvider, useI18n } from '@/lib/i18n';
 import { registerPushNotifications } from '@/lib/notifications/register';
+import { usePushNavigation } from '@/lib/notifications/use-push-navigation';
 import { SyncProvider } from '@/lib/sync/provider';
 import { theme } from '@/lib/theme';
 
@@ -99,6 +100,9 @@ function NavigationGate() {
       registerPushNotifications(locale).catch(() => undefined);
     }
   }, [i18nReady, isAuthenticated, locale, user]);
+
+  // Deep-link a notification tap once the app is past the auth gate.
+  usePushNavigation(Boolean(isAuthenticated && onboardingComplete && i18nReady));
 
   if (!isReady || !i18nReady) {
     return (

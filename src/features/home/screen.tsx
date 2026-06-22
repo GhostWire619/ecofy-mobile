@@ -18,18 +18,19 @@ import { mobileApi } from '@/lib/api/mobile';
 import { farmRepository } from '@/lib/db/repositories';
 import type { FarmHealthSummary, FarmRecord, JourneyRecord, WeatherCacheRecord } from '@/lib/domain/types';
 import { normalizeFarmHealthSummary, normalizeFarmRecord, normalizeJourneyRecord } from '@/features/farms/data';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 // ─── Risk helpers ─────────────────────────────────────────────────────────────
 
 type RiskLevel = 'low' | 'moderate' | 'high' | 'critical' | 'none';
 
-const RISK: Record<RiskLevel, { label: string; color: string; dot: string }> = {
-  low:      { label: 'Looking good',       color: theme.colors.success,   dot: theme.colors.success   },
-  moderate: { label: 'Needs attention',    color: theme.colors.warning,   dot: theme.colors.warning   },
-  high:     { label: 'At risk',            color: '#f97316',               dot: '#f97316'              },
-  critical: { label: 'Urgent action',      color: theme.colors.danger,    dot: theme.colors.danger    },
-  none:     { label: 'No journey',         color: theme.colors.textMuted, dot: theme.colors.textMuted },
+const RISK: Record<RiskLevel, { labelKey: string; color: string; dot: string }> = {
+  low:      { labelKey: 'farms.lookingGood',   color: theme.colors.success,   dot: theme.colors.success   },
+  moderate: { labelKey: 'farms.needsAttention', color: theme.colors.warning,  dot: theme.colors.warning   },
+  high:     { labelKey: 'farms.atRisk',        color: '#f97316',               dot: '#f97316'              },
+  critical: { labelKey: 'farms.urgentAction',  color: theme.colors.danger,    dot: theme.colors.danger    },
+  none:     { labelKey: 'farms.noJourney',     color: theme.colors.textMuted, dot: theme.colors.textMuted },
 };
 
 function deriveRisk(input: { journey?: JourneyRecord | null; health?: FarmHealthSummary | null }): RiskLevel {
@@ -67,6 +68,7 @@ function FarmActionSheet({
   onSetActiveFarm: (farmId: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const actions: {
     icon: React.ComponentProps<typeof Ionicons>['name'];
     label: string;
@@ -75,25 +77,25 @@ function FarmActionSheet({
   }[] = [
     {
       icon: 'open-outline',
-      label: 'Open dashboard',
+      label: t('farms.openDashboard'),
       testID: 'farm-action-open-dashboard',
       onPress: () => { onClose(); router.push(`/farms/${farm.id}` as any); },
     },
     {
       icon: 'map-outline',
-      label: 'View on map',
+      label: t('farms.viewOnMap'),
       testID: 'farm-action-view-map',
       onPress: () => { onClose(); router.push(`/farms-map/${farm.id}` as any); },
     },
     {
       icon: isActive ? 'checkmark-circle-outline' : 'radio-button-on-outline',
-      label: isActive ? 'Active farm' : 'Set as active farm',
+      label: isActive ? t('farms.activeFarm') : t('farms.setActiveFarm'),
       testID: 'farm-action-set-active',
       onPress: () => { onClose(); onSetActiveFarm(String(farm.id)); },
     },
     {
       icon: 'sparkles-outline',
-      label: 'Ask AI',
+      label: t('farms.askAI'),
       testID: 'farm-action-ask-ai',
       onPress: () => { onClose(); router.push('/assistant' as any); },
     },
@@ -142,10 +144,12 @@ function FarmCard({
   onMenuPress: () => void;
   isActive: boolean;
 }) {
+  const { t } = useI18n();
   const risk = deriveRisk({ journey, health: healthSummary });
-  const { label: riskLabel, color: riskColor, dot: riskDot } = RISK[risk];
+  const { labelKey: riskLabelKey, color: riskColor, dot: riskDot } = RISK[risk];
+  const riskLabel = t(riskLabelKey);
 
-  const location = [farm.district, farm.region, farm.country].filter(Boolean).join(', ') || 'Location not set';
+  const location = [farm.district, farm.region, farm.country].filter(Boolean).join(', ') || t('farms.locationNotSet');
 
   const temp = (() => {
     if (!weather?.summary_json) return null;
@@ -169,7 +173,7 @@ function FarmCard({
             <Text style={s.farmName} numberOfLines={1}>{farm.name}</Text>
             {isActive ? (
               <View style={s.activeFarmBadge}>
-                <Text style={s.activeFarmBadgeText}>Active farm</Text>
+                <Text style={s.activeFarmBadgeText}>{t('farms.activeFarm')}</Text>
               </View>
             ) : null}
           </View>
@@ -233,18 +237,17 @@ function FarmCard({
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function FarmsEmpty() {
+  const { t } = useI18n();
   return (
     <View style={s.emptyCard}>
       <View style={s.emptyIcon}>
         <Ionicons name="leaf-outline" size={28} color={theme.colors.primary} />
       </View>
-      <Text style={s.emptyTitle}>No farms</Text>
-      <Text style={s.emptyMeta}>
-        Create your first farm to unlock offline mapping, weather, and crop journey tracking.
-      </Text>
+      <Text style={s.emptyTitle}>{t('farms.emptyTitle')}</Text>
+      <Text style={s.emptyMeta}>{t('farms.emptyMeta')}</Text>
       <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/farms/new')} activeOpacity={0.8}>
         <Ionicons name="add" size={16} color="#fff" />
-        <Text style={s.emptyBtnText}>Add first farm</Text>
+        <Text style={s.emptyBtnText}>{t('farms.addFirstFarm')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -253,6 +256,7 @@ function FarmsEmpty() {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export function HomeScreen() {
+  const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [menuFarm, setMenuFarm] = useState<FarmRecord | null>(null);
   const queryClient = useQueryClient();
@@ -349,12 +353,12 @@ export function HomeScreen() {
       <View style={s.utilityRow}>
         <Text style={s.pageSubtitle}>
           {isLoading
-            ? 'Loading farms...'
-            : `${farms.length} farm${farms.length !== 1 ? 's' : ''}${search && filtered.length !== farms.length ? ` · ${filtered.length} shown` : ''}`}
+            ? t('farms.loadingFarms')
+            : `${t(farms.length === 1 ? 'farms.farmCountOne' : 'farms.farmCountMany', { n: farms.length })}${search && filtered.length !== farms.length ? t('farms.shownSuffix', { n: filtered.length }) : ''}`}
         </Text>
         <TouchableOpacity style={s.addBtn} onPress={() => router.push('/farms/new')} activeOpacity={0.8}>
           <Ionicons name="add" size={18} color="#fff" />
-          <Text style={s.addBtnText}>Add farm</Text>
+          <Text style={s.addBtnText}>{t('farms.addFarm')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -363,7 +367,7 @@ export function HomeScreen() {
         <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
         <TextInput
           style={s.searchInput}
-          placeholder="Search farms by name or location…"
+          placeholder={t('farms.searchFarms')}
           placeholderTextColor={theme.colors.textMuted}
           value={search}
           onChangeText={setSearch}
@@ -380,11 +384,11 @@ export function HomeScreen() {
       {/* ── Farm list ── */}
       {isLoading ? (
         <View style={s.loadingRow}>
-          <Text style={s.loadingText}>Loading farms…</Text>
+          <Text style={s.loadingText}>{t('farms.loadingFarms')}</Text>
         </View>
       ) : isError ? (
         <View style={s.noResultsCard}>
-          <Text style={s.noResultsText}>{error instanceof Error ? error.message : 'Could not load farms.'}</Text>
+          <Text style={s.noResultsText}>{error instanceof Error ? error.message : t('farms.couldNotLoad')}</Text>
         </View>
       ) : filtered.length > 0 ? (
         filtered.map((farm) => (
@@ -400,7 +404,7 @@ export function HomeScreen() {
         ))
       ) : search ? (
         <View style={s.noResultsCard}>
-          <Text style={s.noResultsText}>No farms match {search}</Text>
+          <Text style={s.noResultsText}>{t('farms.noFarmsMatchQuery', { q: search })}</Text>
         </View>
       ) : (
         <FarmsEmpty />

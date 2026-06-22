@@ -25,6 +25,7 @@ import { decodeInstructions, farmRepository, journeyRepository } from '@/lib/db/
 import type { AchievementBadge, LiveWeatherResponse, TaskRecord } from '@/lib/domain/types';
 import { useTaskActions } from '@/lib/hooks/use-task-actions';
 import { useTaskCompletion } from '@/lib/hooks/use-task-completion';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 import {
   assessTodayWeather,
@@ -45,11 +46,11 @@ const WEATHER_IMAGES = {
   fog: require('../../../assets/images/weather/fog.png'),
 } satisfies Record<string, ImageSourcePropType>;
 
-function greeting() {
+function greetingKey() {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 12) return 'today.goodMorning';
+  if (h < 17) return 'today.goodAfternoon';
+  return 'today.goodEvening';
 }
 
 function isNightTime() {
@@ -94,6 +95,7 @@ function WeatherWeekWidget({
   error: boolean;
   onRetry: () => void;
 }) {
+  const { t } = useI18n();
   const days = weather?.forecast.slice(0, 7) ?? [];
   const current = weather?.current;
   const workability = workabilityHeadline(assessTodayWeather(weather));
@@ -111,7 +113,7 @@ function WeatherWeekWidget({
             />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.weatherTitle}>Weather this week</Text>
+            <Text style={styles.weatherTitle}>{t('today.weatherThisWeek')}</Text>
             <Text style={styles.weatherFarm}>Active farm · {farmName}</Text>
           </View>
         </View>
@@ -130,18 +132,18 @@ function WeatherWeekWidget({
       {loading ? (
         <View style={styles.weatherState}>
           <ActivityIndicator color={theme.colors.primary} />
-          <Text style={styles.weatherStateText}>Checking the week ahead...</Text>
+          <Text style={styles.weatherStateText}>{t('today.checkingWeek')}</Text>
         </View>
       ) : error ? (
         <TouchableOpacity style={styles.weatherState} onPress={onRetry} activeOpacity={0.75}>
           <Ionicons name="refresh-outline" size={18} color={theme.colors.primary} />
-          <Text style={styles.weatherRetry}>Weather unavailable. Tap to retry.</Text>
+          <Text style={styles.weatherRetry}>{t('today.weatherRetry')}</Text>
         </TouchableOpacity>
       ) : days.length === 0 ? (
         <View style={styles.weatherState}>
           <Ionicons name="location-outline" size={18} color={theme.colors.textMuted} />
           <Text style={styles.weatherStateText}>
-            Add farm coordinates to receive the weekly forecast.
+            {t('today.addCoordsForecast')}
           </Text>
         </View>
       ) : (
@@ -165,7 +167,7 @@ function WeatherWeekWidget({
               return (
                 <View key={`${day.date}-${index}`} style={styles.forecastDay}>
                   <Text style={[styles.forecastDayLabel, index === 0 && styles.forecastToday]}>
-                    {dayLabel(day.date, index)}
+                    {index === 0 ? t('common.today') : dayLabel(day.date, index)}
                   </Text>
                   <Image
                     source={weatherImage(iconConditions, index === 0 && nightNow)}
@@ -213,8 +215,10 @@ function WeatherWeekWidget({
             <View style={styles.weatherFooter}>
               <Ionicons name="water-outline" size={14} color={theme.colors.primary} />
               <Text style={styles.weatherFooterText}>
-                {Math.round(weather?.summary?.total_rainfall_mm ?? 0)} mm rain expected over the next{' '}
-                {days.length} days
+                {t('today.rainExpectedDays', {
+                  mm: Math.round(weather?.summary?.total_rainfall_mm ?? 0),
+                  days: days.length,
+                })}
               </Text>
             </View>
           )}
@@ -240,17 +244,18 @@ function topTask(tasks: TaskRecord[]): TaskRecord | null {
 
 const QUICK_ACTIONS: {
   icon: keyof typeof Ionicons.glyphMap;
-  label: string;
+  labelKey: string;
   route: string;
 }[] = [
-  { icon: 'scan-outline', label: 'Scan crop', route: '/scan' },
-  { icon: 'document-text-outline', label: 'Add note', route: '/(tabs)/logbook' },
-  { icon: 'trophy-outline', label: 'My journey', route: '/(tabs)/journey' },
-  { icon: 'sparkles-outline', label: 'Ask AI', route: '/assistant' },
+  { icon: 'scan-outline', labelKey: 'today.scanCrop', route: '/scan' },
+  { icon: 'document-text-outline', labelKey: 'today.addNote', route: '/(tabs)/logbook' },
+  { icon: 'trophy-outline', labelKey: 'today.myJourney', route: '/(tabs)/journey' },
+  { icon: 'sparkles-outline', labelKey: 'today.askAi', route: '/assistant' },
 ];
 
 export function TodayScreen() {
   const { user, refreshBootstrap } = useAuth();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [celebrating, setCelebrating] = useState<AchievementBadge | null>(null);
 
@@ -353,7 +358,7 @@ export function TodayScreen() {
       {/* ── Compact greeting ── */}
       <View style={styles.header}>
         <Text style={styles.greeting}>
-          {greeting()}, <Text style={styles.greetingName}>{firstName}</Text> 👋
+          {t(greetingKey())}, <Text style={styles.greetingName}>{firstName}</Text> 👋
         </Text>
       </View>
 
@@ -369,11 +374,11 @@ export function TodayScreen() {
 
       {/* ── Quick actions ── */}
       <View style={styles.quickSection}>
-        <Text style={styles.quickSectionTitle}>Quick actions</Text>
+        <Text style={styles.quickSectionTitle}>{t('today.quickActions')}</Text>
         <View style={styles.quickGrid}>
           {QUICK_ACTIONS.map((a) => (
             <TouchableOpacity
-              key={a.label}
+              key={a.labelKey}
               style={styles.quickItem}
               activeOpacity={0.75}
               onPress={() => router.push(a.route as never)}
@@ -381,7 +386,7 @@ export function TodayScreen() {
               <View style={styles.quickIcon}>
                 <Ionicons name={a.icon} size={18} color={theme.colors.primary} />
               </View>
-              <Text style={styles.quickLabel} numberOfLines={1}>{a.label}</Text>
+              <Text style={styles.quickLabel} numberOfLines={1}>{t(a.labelKey)}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -389,17 +394,17 @@ export function TodayScreen() {
 
       {/* ── Hero: do this today ── */}
       <Section>
-        <Text style={styles.sectionTitle}>Do this today</Text>
+        <Text style={styles.sectionTitle}>{t('today.doThisToday')}</Text>
         {isLoading ? (
           <SkeletonCard />
         ) : journey && plantingDateMissing ? (
           <Card>
-            <Text style={styles.heroTitle}>Set your planting date</Text>
+            <Text style={styles.heroTitle}>{t('today.setPlantingTitle')}</Text>
             <Text style={styles.heroSub}>
-              {activeFarm?.name ?? 'This farm'} has a journey, but planting date is not set yet. Add it so task timing and stage progress can start properly.
+              {t('today.setPlantingBody', { farm: activeFarm?.name ?? 'This farm' })}
             </Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/journey')}>
-              <Text style={styles.moreLink}>Open this journey and finish setup →</Text>
+              <Text style={styles.moreLink}>{t('today.openJourneySetup')}</Text>
             </TouchableOpacity>
           </Card>
         ) : hero ? (
@@ -448,7 +453,7 @@ export function TodayScreen() {
               >
                 <Ionicons name="sunny-outline" size={15} color={theme.colors.primary} />
                 <Text style={styles.altTaskText}>
-                  Better for today: <Text style={styles.altTaskTitle}>{altTask.title}</Text>
+                  {t('today.betterForToday')} <Text style={styles.altTaskTitle}>{altTask.title}</Text>
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -459,39 +464,41 @@ export function TodayScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="checkmark" size={18} color="#fff" />
-              <Text style={styles.ctaText}>Mark done · +{hero.xp_value} XP</Text>
+              <Text style={styles.ctaText}>{t('today.markDoneXp', { xp: hero.xp_value })}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => actions.open(hero)} hitSlop={6}>
-              <Text style={styles.snoozeLink}>Can&apos;t do it today? Snooze or skip</Text>
+              <Text style={styles.snoozeLink}>{t('today.snoozeSkip')}</Text>
             </TouchableOpacity>
             {remaining > 1 ? (
               <TouchableOpacity onPress={() => router.push('/(tabs)/journey')}>
-                <Text style={styles.moreLink}>{remaining - 1} more task{remaining - 1 > 1 ? 's' : ''} in your journey →</Text>
+                <Text style={styles.moreLink}>
+                  {t(remaining - 1 === 1 ? 'today.moreTasksOne' : 'today.moreTasksMany', { count: remaining - 1 })}
+                </Text>
               </TouchableOpacity>
             ) : null}
           </Card>
         ) : journey ? (
           <Card>
-            <Text style={styles.allDone}>🌱 All caught up for now. Great work!</Text>
+            <Text style={styles.allDone}>{t('today.allCaughtUp')}</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/journey')}>
-              <Text style={styles.moreLink}>View your crop journey →</Text>
+              <Text style={styles.moreLink}>{t('today.viewJourney')}</Text>
             </TouchableOpacity>
           </Card>
         ) : activeFarm ? (
           <Card>
-            <Text style={styles.heroTitle}>No journey yet for {activeFarm.name}</Text>
+            <Text style={styles.heroTitle}>{t('today.noJourneyTitle', { farm: activeFarm.name })}</Text>
             <Text style={styles.heroSub}>
-              Select a crop and planting details for this farm so we can build the right tasks and monitoring timeline.
+              {t('today.noJourneyBody')}
             </Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/farms')}>
-              <Text style={styles.moreLink}>Open Farms and continue setup →</Text>
+              <Text style={styles.moreLink}>{t('today.openFarmsSetup')}</Text>
             </TouchableOpacity>
           </Card>
         ) : (
           <Card>
-            <Text style={styles.heroTitle}>Start your first crop journey</Text>
+            <Text style={styles.heroTitle}>{t('today.startFirstTitle')}</Text>
             <Text style={styles.heroSub}>
-              Pick a crop and we&apos;ll guide you week by week from planting to harvest.
+              {t('today.startFirstBody')}
             </Text>
             <TouchableOpacity
               style={styles.cta}
@@ -499,7 +506,7 @@ export function TodayScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.ctaText}>Get started</Text>
+              <Text style={styles.ctaText}>{t('today.getStarted')}</Text>
             </TouchableOpacity>
           </Card>
         )}
@@ -507,7 +514,7 @@ export function TodayScreen() {
 
       {/* ── Smart nudges (tick-engine + advisories, all journeys) ── */}
       <Section>
-        <SmartNudges />
+        <SmartNudges title={t('today.smartNudges')} />
       </Section>
 
       <AchievementModal badge={celebrating} onClose={() => setCelebrating(null)} />

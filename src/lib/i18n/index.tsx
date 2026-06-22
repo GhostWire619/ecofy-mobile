@@ -28,14 +28,15 @@ type I18nContextValue = {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function getTranslation(tree: TranslationTree, key: string) {
-  return key.split('.').reduce<unknown>((current, segment) => {
+/** Resolve a dotted key to its string in one tree, or undefined if absent. */
+function lookup(tree: TranslationTree, key: string): string | undefined {
+  const value = key.split('.').reduce<unknown>((current, segment) => {
     if (current && typeof current === 'object' && segment in current) {
       return (current as Record<string, unknown>)[segment];
     }
-
-    return key;
+    return undefined;
   }, tree);
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function formatTemplate(template: string, params?: Record<string, string | number>) {
@@ -88,8 +89,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       isReady,
       setLocale,
       t: (key, params) => {
-        const result = getTranslation(translations[locale], key);
-        return typeof result === 'string' ? formatTemplate(result, params) : key;
+        // Active locale → English fallback → the key itself. This is what lets us
+        // scale languages safely: a key not yet translated in the active locale
+        // (or in a newly-added language) shows readable English instead of a raw
+        // dotted key, so partial translations never break the UI.
+        const raw = lookup(translations[locale], key) ?? lookup(translations.en, key) ?? key;
+        return formatTemplate(raw, params);
       },
     }),
     [isReady, locale],

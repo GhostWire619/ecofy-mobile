@@ -1,32 +1,34 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/core/button';
+import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 import { useSync } from '@/lib/sync/provider';
 
 export function SyncBanner() {
+  const { t } = useI18n();
   const { isOnline, isSyncing, queuedCount, conflictCount, flush } = useSync();
 
   const tone =
     conflictCount > 0 ? styles.danger : queuedCount > 0 ? styles.warning : styles.success;
 
   const message = !isOnline
-    ? 'Offline mode is active. New field work will be stored on this device.'
+    ? t('syncBanner.offlineActive')
     : conflictCount > 0
-      ? `${conflictCount} sync conflict${conflictCount === 1 ? '' : 's'} need review.`
+      ? t('syncBanner.conflictsNeedReview', { n: conflictCount })
       : queuedCount > 0
-        ? `${queuedCount} local change${queuedCount === 1 ? '' : 's'} waiting to sync.`
-        : 'Everything is synced and ready for the field.';
+        ? t('syncBanner.changesWaiting', { n: queuedCount })
+        : t('syncBanner.allSynced');
 
   return (
     <View style={[styles.banner, tone]}>
       <View style={styles.copy}>
-        <Text style={styles.title}>{isOnline ? 'Sync status' : 'Offline first'}</Text>
+        <Text style={styles.title}>{isOnline ? t('settings.syncStatus') : t('syncBanner.offlineFirst')}</Text>
         <Text style={styles.message}>{message}</Text>
       </View>
       {isOnline && queuedCount > 0 ? (
         <Button
-          label={isSyncing ? 'Syncing...' : 'Sync now'}
+          label={isSyncing ? t('syncBanner.syncing') : t('syncBanner.syncNow')}
           variant="secondary"
           disabled={isSyncing}
           onPress={() => void flush()}
