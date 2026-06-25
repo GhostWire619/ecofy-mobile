@@ -19,6 +19,7 @@ import { Screen, Section } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { TaskActionsSheet } from '@/components/tasks/task-actions-sheet';
 import { TaskCompletionSheet } from '@/components/tasks/task-completion-sheet';
+import { StartJourneySheet } from '@/features/farms/start-journey-sheet';
 import { mobileApi } from '@/lib/api/mobile';
 import { useAuth } from '@/lib/auth/provider';
 import { decodeInstructions, farmRepository, journeyRepository } from '@/lib/db/repositories';
@@ -208,7 +209,7 @@ function WeatherWeekWidget({
                   workability.tone === 'warn' && styles.weatherFooterTextWarn,
                 ]}
               >
-                {workability.text}
+                {t(workability.key, workability.params)}
               </Text>
             </View>
           ) : (
@@ -255,9 +256,10 @@ const QUICK_ACTIONS: {
 
 export function TodayScreen() {
   const { user, refreshBootstrap } = useAuth();
-  const { t } = useI18n();
+  const { t, localize } = useI18n();
   const queryClient = useQueryClient();
   const [celebrating, setCelebrating] = useState<AchievementBadge | null>(null);
+  const [startJourneyOpen, setStartJourneyOpen] = useState(false);
 
   const { data, refetch, isRefetching, isLoading } = useQuery({
     queryKey: ['today-screen'],
@@ -414,7 +416,7 @@ export function TodayScreen() {
                 <Ionicons name="leaf" size={22} color={theme.colors.primary} />
               </View>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={styles.heroTitle}>{hero.title}</Text>
+                <Text style={styles.heroTitle}>{localize(hero.title)}</Text>
                 {journey ? (
                   <Text style={styles.heroSub}>
                     {journey.common_name}
@@ -442,7 +444,7 @@ export function TodayScreen() {
                   size={15}
                   color={heroWeather.level === 'block' ? theme.colors.warning : theme.colors.info}
                 />
-                <Text style={styles.weatherNoteText}>{heroWeather.text}</Text>
+                <Text style={styles.weatherNoteText}>{t(heroWeather.key, heroWeather.params)}</Text>
               </View>
             ) : null}
             {altTask ? (
@@ -453,7 +455,7 @@ export function TodayScreen() {
               >
                 <Ionicons name="sunny-outline" size={15} color={theme.colors.primary} />
                 <Text style={styles.altTaskText}>
-                  {t('today.betterForToday')} <Text style={styles.altTaskTitle}>{altTask.title}</Text>
+                  {t('today.betterForToday')} <Text style={styles.altTaskTitle}>{localize(altTask.title)}</Text>
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -490,8 +492,13 @@ export function TodayScreen() {
             <Text style={styles.heroSub}>
               {t('today.noJourneyBody')}
             </Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/farms')}>
-              <Text style={styles.moreLink}>{t('today.openFarmsSetup')}</Text>
+            <TouchableOpacity
+              style={styles.cta}
+              onPress={() => setStartJourneyOpen(true)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="leaf" size={18} color="#fff" />
+              <Text style={styles.ctaText}>{t('journeyStart.cta')}</Text>
             </TouchableOpacity>
           </Card>
         ) : (
@@ -502,7 +509,7 @@ export function TodayScreen() {
             </Text>
             <TouchableOpacity
               style={styles.cta}
-              onPress={() => router.push('/(onboarding)/welcome')}
+              onPress={() => router.push('/farms/new')}
               activeOpacity={0.85}
             >
               <Ionicons name="add" size={18} color="#fff" />
@@ -522,6 +529,13 @@ export function TodayScreen() {
       <TaskCompletionSheet {...completion.sheet} />
       <TaskActionsSheet {...actions.sheet} />
       <UndoToast {...completion.toast} />
+      <StartJourneySheet
+        visible={startJourneyOpen}
+        farmId={activeFarm?.id ? String(activeFarm.id) : null}
+        farm={activeFarm}
+        onClose={() => setStartJourneyOpen(false)}
+        onStarted={() => void refetch()}
+      />
     </View>
   );
 }

@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 
 import { env } from '@/lib/constants/env';
+import { useI18n } from '@/lib/i18n';
+import { ensureLocationPermission } from '@/lib/location/permission';
 import { theme } from '@/lib/theme';
 import {
   buildBoundaryJson,
@@ -127,6 +129,7 @@ function MapBtn({ label, active, onPress, disabled }: { label: string; active?: 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHandle, bottomInset = 88 }: Props) {
+  const { t } = useI18n();
   const [points, setPoints] = useState<BoundaryPoint[]>(
     () => parseBoundaryPoints(value?.fieldBoundaryJson ?? null),
   );
@@ -177,11 +180,14 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
     };
   }, []);
 
-  // Auto-detect user location on mount
+  // Center on the user's location on mount ONLY if permission was already
+  // granted. We never auto-prompt here — Google Play requires a prominent
+  // disclosure before the first request, which we show on explicit user action
+  // (locate button / start walk) instead.
   useEffect(() => {
     async function init() {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      const { granted } = await Location.getForegroundPermissionsAsync();
+      if (!granted) return;
       try {
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         const pt: BoundaryPoint = [pos.coords.longitude, pos.coords.latitude];
@@ -293,8 +299,8 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
   // ── Current location ──
   async function captureCurrentLocation() {
     setLocationError(null);
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') { setLocationError('Location permission denied.'); return; }
+    const granted = await ensureLocationPermission(t);
+    if (!granted) { setLocationError(t('location.permissionDenied')); return; }
     try {
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const pt: BoundaryPoint = [pos.coords.longitude, pos.coords.latitude];
@@ -307,8 +313,8 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
 
   // ── Walk ──
   async function startWalk() {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') { setLocationError('Location permission required.'); return; }
+    const granted = await ensureLocationPermission(t);
+    if (!granted) { setLocationError(t('location.permissionDenied')); return; }
     setIsWalking(true); setPoints([]);
     let lastPt: BoundaryPoint | null = null;
     walkSubRef.current = await Location.watchPositionAsync(

@@ -1,4 +1,4 @@
-import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, keepPreviousData, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -21,8 +21,15 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
+      // Returning to a tab within this window serves cached data instantly — no
+      // refetch, no spinner flash.
+      staleTime: 2 * 60_000,
+      // Keep cached pages in memory much longer so switching away and back is free.
+      gcTime: 30 * 60_000,
+      // On refetch or query-key change, keep showing the previous data instead of
+      // blanking to a spinner — the page updates in place once fresh data lands.
+      placeholderData: keepPreviousData,
+      retry: 1,
     },
   },
 });

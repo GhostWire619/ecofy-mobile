@@ -8,6 +8,7 @@
     "close": "Funga",
     "back": "Rudi",
     "next": "Endelea",
+    "continue": "Endelea",
     "done": "Imekamilika",
     "search": "Tafuta",
     "add": "Ongeza",
@@ -308,7 +309,12 @@
     "googleSignUpFailed": "Kujisajili kwa Google kumeshindwa",
     "signUpWithGoogle": "Jisajili na Google",
     "continueWithGoogle": "Endelea na Google",
-    "backToSignIn": "Rudi kuingia"
+    "backToSignIn": "Rudi kuingia",
+    "consentPrefix": "Kwa kuendelea, unakubali ",
+    "consentTerms": "Masharti",
+    "consentAnd": " na ",
+    "consentPrivacy": "Sera ya Faragha",
+    "consentSuffix": " yetu."
   },
   "nav": {
     "home": "Nyumbani",
@@ -673,6 +679,23 @@
     "signingOut": "Inatoka…",
     "versionLine": "Ecofy Mobile · toleo la nje ya mtandao",
     "memberSince": "Mwanachama tangu {date}",
+    "legal": "Kisheria",
+    "privacyPolicy": "Sera ya Faragha",
+    "termsOfService": "Masharti ya Huduma",
+    "accountSection": "Akaunti",
+    "deleteAccount": "Futa akaunti",
+    "deleteAccountPending": "Inafuta…",
+    "deleteAccountSub": "Ondoa kabisa akaunti na data yako",
+    "deleteAccountConfirmTitle": "Futa akaunti yako?",
+    "deleteAccountConfirmBody": "Akaunti yako itafungwa sasa na kufutwa kabisa baada ya siku 30. Ingia tena ndani ya siku 30 kughairi. Hii itaondoa mashamba, kumbukumbu na rekodi zako.",
+    "deleteAccountConfirmCta": "Futa akaunti yangu",
+    "deleteAccountFailedTitle": "Imeshindwa kufuta akaunti",
+    "deleteAccountFailedBody": "Kuna tatizo limetokea. Angalia muunganisho wako na ujaribu tena.",
+    "sendTestNotification": "Tuma arifa ya majaribio",
+    "sendTestNotificationSub": "Hakikisha arifa zinafanya kazi",
+    "testNotifSent": "Imetumwa kwa vifaa {n}. Angalia arifa zako.",
+    "testNotifNoDevice": "Hakuna kifaa kilichosajiliwa bado — hakikisha arifa zimeruhusiwa, kisha jaribu tena.",
+    "testNotifFailed": "Imeshindwa kutuma jaribio. Angalia muunganisho wako na ujaribu tena.",
     "dataPrivacy": "Data na Faragha",
     "dailyReminders": "Vikumbusho vya Kila Siku",
     "dailyRemindersDesc": "Kupata vikumbusho vya kazi zako",
@@ -858,5 +881,46 @@
     "loadingFarm": "Inapakia shamba lako...",
     "myCrop": "Zao Langu",
     "myFarm": "Shamba Langu"
+  },
+  "weatherAdvice": {
+    "toughFieldwork": "Mvua kubwa au upepo mkali ({wind} km/h) — siku ngumu kwa kazi za shambani",
+    "veryHot": "Joto kali ({temp}°) — fanya kazi asubuhi au jioni yenye ubaridi",
+    "rainLikely": "Mvua inatarajiwa leo ({rain}%) — nzuri kwa zao, panga kazi kavu kabla yake",
+    "rainLikelyPlain": "Mvua inatarajiwa leo — nzuri kwa zao, panga kazi kavu kabla yake",
+    "warmGood": "Joto la wastani na ukavu ({temp}°) — siku nzuri kwa kazi za shambani",
+    "goodDay": "Hali nzuri kwa kazi za shambani leo",
+    "sprayWind": "Upepo mkali ({wind} km/h) — dawa inaweza kupeperushwa. Subiri muda wa utulivu.",
+    "sprayRain": "Mvua inatarajiwa baadaye ({rain}%) — dawa inaweza kuoshwa. Subiri muda mkavu.",
+    "fertilizeHeavyRain": "Mvua kubwa leo inaweza kuosha mbolea. Weka siku yenye ukavu zaidi.",
+    "fertilizeRain": "Mvua nyepesi inatarajiwa — epuka kuweka kabla ya mvua kubwa.",
+    "fieldworkHard": "Mvua au upepo leo — kazi za shambani ni ngumu na zinaweza kuharibu udongo. Jaribu ikikauka.",
+    "irrigateRain": "Mvua inatarajiwa leo ({rain}%) — huenda usihitaji kumwagilia. Angalia udongo kwanza.",
+    "plantHeavyRain": "Mvua kubwa leo — mbegu zinaweza kuoshwa. Siku nyepesi ni salama zaidi.",
+    "veryHotGeneric": "Joto kali leo ({temp}°) — fanya kazi asubuhi au jioni na kunywa maji."
+  },
+  "journeyStart": {
+    "cta": "Anza safari ya zao",
+    "title": "Anza safari ya zao lako",
+    "subtitle": "Chagua zao lako na utakapopanda — tutakuandalia mpango wa kila siku.",
+    "cropLabel": "Zao",
+    "whenLabel": "Utapanda lini?",
+    "planted": "Nimeshapanda",
+    "thisMonth": "Napanda sasa",
+    "later": "Napanda baadaye",
+    "start": "Anza safari",
+    "errNoCrop": "Tafadhali chagua zao kwanza.",
+    "errFailed": "Imeshindwa kuanza safari. Tafadhali jaribu tena."
+  },
+  "mapHelp": {
+    "title": "Ongeza shamba kwa hatua 3",
+    "step1": "Nenda shambani kwako — au simama kwenye kona moja ya shamba.",
+    "step2": "Gusa “Eneo langu” kuweka alama, au “Tembea” kufuatilia mipaka unapotembea.",
+    "step3": "Angalia eneo kwenye ramani, kisha andika jina la shamba hapa chini na uhifadhi.",
+    "gotIt": "Nimeelewa"
+  },
+  "location": {
+    "disclosureTitle": "Ecofy hutumia eneo lako",
+    "disclosureBody": "Ecofy hukusanya eneo la kifaa chako ili kuweka na kupima shamba lako kwenye ramani na kuboresha ushauri wa hali ya hewa na kilimo. Eneo hutumika tu unapotumia programu — kamwe nyuma ya pazia.",
+    "permissionDenied": "Ruhusa ya eneo inahitajika ili kunasa eneo la shamba lako. Unaweza kuiwasha katika Mipangilio."
   }
 }

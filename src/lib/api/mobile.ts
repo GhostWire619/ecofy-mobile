@@ -189,6 +189,22 @@ export const authApi = {
       auth: false,
     });
   },
+  /** Request account deletion (store-compliance). 30-day grace then permanent purge. */
+  async requestAccountDeletion() {
+    return apiRequest<{ success: boolean; grace_days: number; scheduled_purge_at: string }>(
+      '/api/users/me/delete',
+      { method: 'POST', auth: true },
+    );
+  },
+  /** Fire a push to the current user's own devices (diagnostic). */
+  async sendTestNotification() {
+    return apiRequest<{
+      requested: boolean;
+      total_devices: number;
+      active_push_devices: number;
+      push_result: { sent: number; tickets: unknown[] };
+    }>('/api/notifications/test', { method: 'POST', auth: true });
+  },
 };
 
 export const mobileApi = {

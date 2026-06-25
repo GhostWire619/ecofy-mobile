@@ -26,7 +26,7 @@ import {
 import { mobileApi } from '@/lib/api/mobile';
 import { useAuth } from '@/lib/auth/provider';
 import { cropCatalog } from '@/lib/constants/crops';
-import { farmRepository, journeyRepository } from '@/lib/db/repositories';
+import { farmRepository, journeyRepository, prefsRepository } from '@/lib/db/repositories';
 import type { CropCatalogItem } from '@/lib/domain/types';
 import { useI18n } from '@/lib/i18n';
 import { queueFarmSync, queueJourneySync } from '@/lib/sync/engine';
@@ -166,6 +166,17 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  // First-time map guidance: show step-by-step instructions so new users aren't lost.
+  const [showMapHelp, setShowMapHelp] = useState(false);
+
+  useEffect(() => {
+    prefsRepository
+      .get('map_help_seen')
+      .then((v) => {
+        if (!v) setShowMapHelp(true);
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!boundarySelection.mappedAreaHectares || sizeEditedManually) return;
@@ -584,6 +595,31 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
         </View>
       )}
 
+      {/* First-time map guidance — slides up over the map so new users know what to do. */}
+      {showMapHelp && !submitted && (
+        <View style={s.mapHelpOverlay}>
+          <View style={s.mapHelpCard}>
+            <Text style={s.mapHelpTitle}>{t('mapHelp.title')}</Text>
+            {[t('mapHelp.step1'), t('mapHelp.step2'), t('mapHelp.step3')].map((step, i) => (
+              <View key={i} style={s.mapHelpStep}>
+                <View style={s.mapHelpNum}><Text style={s.mapHelpNumText}>{i + 1}</Text></View>
+                <Text style={s.mapHelpText}>{step}</Text>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={s.mapHelpBtn}
+              activeOpacity={0.85}
+              onPress={() => {
+                setShowMapHelp(false);
+                void prefsRepository.set('map_help_seen', '1');
+              }}
+            >
+              <Text style={s.mapHelpBtnText}>{t('mapHelp.gotIt')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
     </View>
   );
 }
@@ -813,4 +849,42 @@ const s = StyleSheet.create({
   successEmoji: { fontSize: 44 },
   successTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
   successBody: { fontSize: 15, color: theme.colors.textMuted, textAlign: 'center', lineHeight: 22 },
+
+  // First-time map guidance overlay
+  mapHelpOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 15,
+    backgroundColor: 'rgba(10,23,14,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+  },
+  mapHelpCard: {
+    width: '100%',
+    backgroundColor: theme.colors.background,
+    borderRadius: 20,
+    padding: theme.spacing.xl,
+    gap: 14,
+  },
+  mapHelpTitle: { fontSize: 20, fontWeight: '800', color: theme.colors.text, marginBottom: 2 },
+  mapHelpStep: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  mapHelpNum: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  mapHelpNumText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  mapHelpText: { flex: 1, fontSize: 15, lineHeight: 21, color: theme.colors.text },
+  mapHelpBtn: {
+    backgroundColor: theme.colors.primary,
+    borderRadius: theme.radius.pill,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  mapHelpBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });

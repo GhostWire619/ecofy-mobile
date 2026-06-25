@@ -14,8 +14,18 @@ import { sessionRepository } from '@/lib/db/repositories';
 import { secureStoreKeys } from '@/lib/constants/env';
 import en from '@/lib/i18n/translations/en.json';
 import sw from '@/lib/i18n/translations/sw.json';
+import contentSw from '@/lib/i18n/content-sw.json';
 
 const translations = { en, sw } as const;
+
+// Server-generated content (task titles, stage names) arrives in English. These
+// maps translate the *bounded, data-driven* vocabulary client-side, keyed by the
+// exact English source string. Sourced from the bilingual agronomy blueprint
+// (name_en/name_sw, title_en/title_sw). To add a language: drop a
+// `content-<lang>.json` and add it here. Unknown strings fall back to English.
+const contentDictionaries: Partial<Record<Locale, Record<string, string>>> = {
+  sw: contentSw as Record<string, string>,
+};
 
 type TranslationTree = typeof en;
 
@@ -24,6 +34,9 @@ type I18nContextValue = {
   isReady: boolean;
   setLocale: (next: Locale) => Promise<void>;
   t: (key: string, params?: Record<string, string | number>) => string;
+  /** Translate server-generated content (task titles, stage names) by exact
+   * English match; returns the original text when there's no translation. */
+  localize: (text?: string | null) => string;
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -95,6 +108,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         // dotted key, so partial translations never break the UI.
         const raw = lookup(translations[locale], key) ?? lookup(translations.en, key) ?? key;
         return formatTemplate(raw, params);
+      },
+      localize: (text) => {
+        if (!text) return text ?? '';
+        const dict = contentDictionaries[locale];
+        return dict?.[text.trim()] ?? text;
       },
     }),
     [isReady, locale],

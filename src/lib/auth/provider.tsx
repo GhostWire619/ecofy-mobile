@@ -34,6 +34,7 @@ type AuthContextValue = AuthState & {
     preferred_language: 'en' | 'sw';
   }) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refreshBootstrap: () => Promise<void>;
   markOnboardingComplete: () => Promise<void>;
 };
@@ -156,6 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const deleteAccount = useCallback(async () => {
+    // Tell the backend to schedule deletion (30-day grace, then purge), then
+    // wipe everything local so this device starts clean.
+    await authApi.requestAccountDeletion();
+    await clearLocalUserData().catch(() => undefined);
+    await clearTokens();
+    setOnboardingComplete(false);
+    setAuthState({ isReady: true, isAuthenticated: false, user: null });
+  }, []);
+
   const refreshBootstrap = useCallback(async () => {
     if (!authState.user) {
       return;
@@ -187,10 +198,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithGoogle,
       register,
       logout,
+      deleteAccount,
       refreshBootstrap,
       markOnboardingComplete,
     }),
-    [authState, onboardingComplete, login, loginWithGoogle, register, logout, refreshBootstrap, markOnboardingComplete],
+    [authState, onboardingComplete, login, loginWithGoogle, register, logout, deleteAccount, refreshBootstrap, markOnboardingComplete],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

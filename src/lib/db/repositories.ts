@@ -628,6 +628,74 @@ export const journeyRepository = {
   },
 };
 
+/**
+ * Recompute milestone + stage status from local task completion so the Journey
+ * UI moves the instant a task is completed/undone/skipped — instead of staying
+ * frozen until the next server sync. This is optimistic: the next bootstrap
+ * overwrites these with server truth (upsertMany is server-wins), so a slight
+ * disagreement self-heals. `journeys.progress_percentage` is deliberately left
+ * untouched — the server owns it (GDD/maturity-based), so writing a task ratio
+ * here would make the number jump on reconcile.
+ */
+async function recomputeJourneyRollups(db: SQLiteDatabase, journeyId: string) {
+  const tasks = await listRows<Pick<TaskRecord, 'milestone_id' | 'status'>>(
+    'SELECT milestone_id, status FROM tasks WHERE journey_id = ? AND deleted_at IS NULL;',
+    [journeyId],
+  );
+  const ts = nowIso();
+  const resolvedOf = (rows: { status: string }[]) =>
+    rows.filter((t) => t.status === 'completed' || t.status === 'skipped').length;
+  const anyDone = (rows: { status: string }[]) => rows.some((t) => t.status === 'completed');
+
+  // Milestones roll up from their tasks. Tasks link to stages only via their
+  // milestone, so stages then roll up from the recomputed milestone statuses.
+  const milestones = await listRows<Pick<MilestoneRecord, 'id' | 'stage_id' | 'status'>>(
+    'SELECT id, stage_id, status FROM milestones WHERE journey_id = ? AND deleted_at IS NULL;',
+    [journeyId],
+  );
+  const nextMilestoneStatus = new Map<string, MilestoneRecord['status']>();
+  for (const m of milestones) {
+    const mt = tasks.filter((t) => t.milestone_id === m.id);
+    let next: MilestoneRecord['status'] = m.status;
+    if (mt.length > 0) {
+      if (resolvedOf(mt) === mt.length) next = 'completed';
+      else if (anyDone(mt)) next = 'in_progress';
+      // Don't downgrade a time-based "in_progress"/"missed"; do drop a stale "completed" on undo.
+      else next = m.status === 'completed' ? 'in_progress' : m.status;
+    }
+    nextMilestoneStatus.set(m.id, next);
+    if (next !== m.status) {
+      await runStatement(db, 'UPDATE milestones SET status = ?, updated_at = ? WHERE id = ?;', [next, ts, m.id]);
+    }
+  }
+
+  const stages = await listRows<Pick<StageRecord, 'id' | 'status'>>(
+    'SELECT id, status FROM stages WHERE journey_id = ? AND deleted_at IS NULL;',
+    [journeyId],
+  );
+  for (const s of stages) {
+    const sm = milestones
+      .filter((m) => m.stage_id === s.id)
+      .map((m) => nextMilestoneStatus.get(m.id) ?? m.status);
+    if (sm.length === 0) continue;
+    let next: StageRecord['status'];
+    if (sm.every((st) => st === 'completed')) next = 'completed';
+    else if (sm.some((st) => st === 'in_progress' || st === 'completed')) next = 'active';
+    else next = s.status === 'completed' ? 'active' : s.status;
+    if (next !== s.status) {
+      await runStatement(db, 'UPDATE stages SET status = ?, updated_at = ? WHERE id = ?;', [next, ts, s.id]);
+    }
+  }
+}
+
+async function recomputeRollupsForTask(db: SQLiteDatabase, taskId: string) {
+  const row = await getFirstRow<{ journey_id: string }>(
+    'SELECT journey_id FROM tasks WHERE id = ? LIMIT 1;',
+    [taskId],
+  );
+  if (row?.journey_id) await recomputeJourneyRollups(db, row.journey_id);
+}
+
 export const taskRepository = {
   async listTodayTasks() {
     const today = formatISO(startOfToday(), { representation: 'date' });
@@ -656,6 +724,7 @@ export const taskRepository = {
        WHERE id = ?;`,
       [timestamp, note ?? null, timestamp, taskId],
     );
+    await recomputeRollupsForTask(db, taskId);
   },
   /** Mark a task as skipped (not done, no XP) with an optional reason. */
   async skipTaskOffline(taskId: string, reason?: string | null) {
@@ -672,6 +741,7 @@ export const taskRepository = {
        WHERE id = ?;`,
       [reason ?? null, timestamp, taskId],
     );
+    await recomputeRollupsForTask(db, taskId);
   },
   /** Push a task's due date out by `days` (from its current due date, or today). Returns the new date. */
   async snoozeTaskOffline(taskId: string, days: number) {
@@ -709,6 +779,7 @@ export const taskRepository = {
        WHERE id = ?;`,
       [timestamp, taskId],
     );
+    await recomputeRollupsForTask(db, taskId);
   },
 };
 

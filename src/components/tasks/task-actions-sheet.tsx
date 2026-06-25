@@ -31,7 +31,7 @@ export function TaskActionsSheet({
   onSkip: (reason: string) => void;
   onCancel: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, localize } = useI18n();
   const snoozeOptions: { label: string; days: number; icon: keyof typeof Ionicons.glyphMap }[] = [
     { label: t('taskSheet.tomorrow'), days: 1, icon: 'today-outline' },
     { label: t('taskSheet.inDays', { n: 3 }), days: 3, icon: 'calendar-outline' },
@@ -44,7 +44,7 @@ export function TaskActionsSheet({
       <View style={styles.sheetWrap}>
         <View style={styles.sheet}>
           <View style={styles.grabber} />
-          <Text style={styles.title} numberOfLines={2}>{task.title}</Text>
+          <Text style={styles.title} numberOfLines={2}>{localize(task.title)}</Text>
 
           <Text style={styles.sectionLabel}>{t('taskSheet.snooze')}</Text>
           <View style={styles.snoozeRow}>

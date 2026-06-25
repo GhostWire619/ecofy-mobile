@@ -2,7 +2,6 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
 
 const APP_NAME = "Ecofy";
 const PRIMARY_COLOR = "#1f6a3a";
-const PRIMARY_DARK = "#0f3d24";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -17,13 +16,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   splash: {
     image: "./assets/images/splash-icon.png",
     resizeMode: "contain",
-    backgroundColor: PRIMARY_DARK,
+    backgroundColor: "#ffffff",
   },
   assetBundlePatterns: ["**/*"],
   ios: {
     bundleIdentifier: "com.ecofy.mobile",
     supportsTablet: false,
-    icon: "./assets/expo.icon",
     config: {
       usesNonExemptEncryption: false,
     },
@@ -39,22 +37,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: "com.ecofy.mobile",
+    googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
     adaptiveIcon: {
       foregroundImage: "./assets/images/android-icon-foreground.png",
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
-      backgroundColor: "#eff5ee",
+      backgroundColor: "#ffffff",
     },
     permissions: [
       "ACCESS_COARSE_LOCATION",
       "ACCESS_FINE_LOCATION",
       "CAMERA",
-      "READ_EXTERNAL_STORAGE",
-      "WRITE_EXTERNAL_STORAGE",
       "POST_NOTIFICATIONS",
       "RECEIVE_BOOT_COMPLETED",
       "VIBRATE",
     ],
+    // Block legacy storage perms that Play flags as sensitive — expo-image-picker
+    // uses the Android Photo Picker / READ_MEDIA_IMAGES on modern API levels.
+    blockedPermissions: ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
   },
   web: {
     output: "static",
@@ -83,7 +83,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "expo-splash-screen",
       {
-        backgroundColor: PRIMARY_DARK,
+        backgroundColor: "#ffffff",
         image: "./assets/images/splash-icon.png",
         imageWidth: 96,
       },

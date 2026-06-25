@@ -36,6 +36,7 @@ import {
   SoilCard,
   type FarmDetailGroup,
 } from '@/features/farms/overview-cards';
+import { StartJourneySheet } from '@/features/farms/start-journey-sheet';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
@@ -821,6 +822,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
   const [showAddLog, setShowAddLog] = useState(false);
   const [editorConfig, setEditorConfig] = useState<FieldEditorConfig | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [startJourneyOpen, setStartJourneyOpen] = useState(false);
 
   const coreQuery = useQuery({
     queryKey: ['farm-workspace-online-core', farmId],
@@ -1315,8 +1317,27 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
           {!coreQuery.data.journey ? (
             <View style={styles.infoBanner}>
               <Text style={styles.infoBannerText}>
-                No active journey yet. Start a crop journey to unlock live field monitoring.
+                {t('today.noJourneyBody')}
               </Text>
+              <TouchableOpacity
+                onPress={() => setStartJourneyOpen(true)}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  backgroundColor: theme.colors.primary,
+                  borderRadius: theme.radius.pill,
+                  paddingVertical: 12,
+                  marginTop: 10,
+                }}
+              >
+                <Ionicons name="leaf" size={16} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>
+                  {t('journeyStart.cta')}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -1685,6 +1706,13 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
             onSave={(value) => updateFieldMutation.mutate({ field: resolvedEditorConfig.field, value })}
           />
         ) : null}
+        <StartJourneySheet
+          visible={startJourneyOpen}
+          farmId={farmId}
+          farm={coreQuery.data?.farm ?? null}
+          onClose={() => setStartJourneyOpen(false)}
+          onStarted={() => void coreQuery.refetch()}
+        />
       </View>
     </SafeAreaView>
   );

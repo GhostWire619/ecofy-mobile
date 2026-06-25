@@ -134,13 +134,15 @@ export function FarmMapScreen({ farmId }: FarmMapScreenProps) {
 
     const startTracking = async () => {
       try {
-        const permission = await Location.requestForegroundPermissionsAsync();
+        // Do NOT prompt here — Google Play requires a prominent disclosure
+        // before the first request (shown when the user explicitly captures
+        // location elsewhere). Only show the live dot if already granted.
+        const permission = await Location.getForegroundPermissionsAsync();
         if (!isMounted) {
           return;
         }
 
         if (!permission.granted) {
-          setLocationError('Location permission was not granted.');
           setLocationReady(true);
           return;
         }

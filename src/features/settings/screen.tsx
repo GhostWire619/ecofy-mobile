@@ -1,13 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { Button } from '@/components/core/button';
 import { Pill } from '@/components/core/pill';
 import { Screen } from '@/components/layout/screen';
+import { authApi } from '@/lib/api/mobile';
 import { useAuth } from '@/lib/auth/provider';
+import { legalUrls } from '@/lib/constants/env';
+import { registerPushNotifications } from '@/lib/notifications/register';
 import { sessionRepository, syncRepository } from '@/lib/db/repositories';
 import { useI18n } from '@/lib/i18n';
 import { useSync } from '@/lib/sync/provider';
@@ -67,10 +71,11 @@ function DetailRow({ label, value, last }: { label: string; value: string; last?
 export function SettingsScreen() {
   const queryClient = useQueryClient();
   const { locale, setLocale, t } = useI18n();
-  const { logout, user } = useAuth();
+  const { logout, deleteAccount, user } = useAuth();
   const { queuedCount, conflictCount } = useSync();
   const [units, setUnits] = useState<'metric' | 'imperial'>('metric');
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useQuery({
     queryKey: ['settings-session'],
@@ -107,6 +112,64 @@ export function SettingsScreen() {
   async function handleLogout() {
     setLoggingOut(true);
     await logout();
+  }
+
+  function openLegal(url: string) {
+    void WebBrowser.openBrowserAsync(url);
+  }
+
+  async function handleTestNotification() {
+    try {
+      // Register first — this requests the OS permission and stores the token.
+      const reg = await registerPushNotifications(locale);
+      if (reg.status !== 'ok') {
+        const detail = reg.status === 'error' ? `\n\n${reg.error}` : '';
+        Alert.alert(
+          t('settings.sendTestNotification'),
+          `${t('settings.testNotifNoDevice')}\n\n[${reg.status}]${detail}`,
+        );
+        return;
+      }
+      const res = await authApi.sendTestNotification();
+      if (res.active_push_devices === 0) {
+        Alert.alert(t('settings.sendTestNotification'), t('settings.testNotifNoDevice'));
+      } else {
+        Alert.alert(
+          t('settings.sendTestNotification'),
+          t('settings.testNotifSent', { n: res.push_result?.sent ?? res.active_push_devices }),
+        );
+      }
+    } catch (e) {
+      Alert.alert(
+        t('settings.sendTestNotification'),
+        `${t('settings.testNotifFailed')}\n\n${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      t('settings.deleteAccountConfirmTitle'),
+      t('settings.deleteAccountConfirmBody'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('settings.deleteAccountConfirmCta'),
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setDeleting(true);
+              try {
+                await deleteAccount();
+              } catch {
+                setDeleting(false);
+                Alert.alert(t('settings.deleteAccountFailedTitle'), t('settings.deleteAccountFailedBody'));
+              }
+            })();
+          },
+        },
+      ],
+    );
   }
 
   const initials = (user?.full_name ?? user?.email ?? 'F')
@@ -228,6 +291,29 @@ export function SettingsScreen() {
         <SectionLabel label={t('settings.support')} />
         <View style={s.menuGroup}>
           <MenuItem icon="information-circle-outline" label={t('settings.aboutEcofy')} sublabel={t('settings.aboutEcofySub')} />
+          <MenuItem
+            icon="notifications-outline"
+            label={t('settings.sendTestNotification')}
+            sublabel={t('settings.sendTestNotificationSub')}
+            onPress={() => void handleTestNotification()}
+          />
+        </View>
+      </View>
+
+      {/* ── Legal ── */}
+      <View style={s.section}>
+        <SectionLabel label={t('settings.legal')} />
+        <View style={s.menuGroup}>
+          <MenuItem
+            icon="shield-checkmark-outline"
+            label={t('settings.privacyPolicy')}
+            onPress={() => openLegal(legalUrls.privacy)}
+          />
+          <MenuItem
+            icon="document-text-outline"
+            label={t('settings.termsOfService')}
+            onPress={() => openLegal(legalUrls.terms)}
+          />
         </View>
       </View>
 
@@ -235,9 +321,22 @@ export function SettingsScreen() {
       <Button
         label={loggingOut ? t('settings.signingOut') : t('settings.signOut')}
         variant="danger"
-        disabled={loggingOut}
+        disabled={loggingOut || deleting}
         onPress={() => void handleLogout()}
       />
+
+      {/* ── Account deletion (store-compliance) ── */}
+      <View style={s.section}>
+        <SectionLabel label={t('settings.accountSection')} />
+        <View style={s.menuGroup}>
+          <MenuItem
+            icon="trash-outline"
+            label={deleting ? t('settings.deleteAccountPending') : t('settings.deleteAccount')}
+            sublabel={t('settings.deleteAccountSub')}
+            onPress={deleting ? undefined : confirmDeleteAccount}
+          />
+        </View>
+      </View>
 
       <Text style={s.version}>{t('settings.versionLine')}</Text>
     </Screen>

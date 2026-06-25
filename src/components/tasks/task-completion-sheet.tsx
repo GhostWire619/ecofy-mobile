@@ -48,7 +48,7 @@ export function TaskCompletionSheet({
   onConfirm: (proof: CompletionProof) => void;
   onCancel: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, localize } = useI18n();
   const [checked, setChecked] = useState<Set<number>>(new Set());
   const [note, setNote] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -114,7 +114,7 @@ export function TaskCompletionSheet({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.title}>{task.title}</Text>
+            <Text style={styles.title}>{localize(task.title)}</Text>
             <Text style={styles.subtitle}>{t('taskSheet.confirmWhatDid')}</Text>
 
             {isEarly ? (

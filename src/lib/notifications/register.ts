@@ -17,9 +17,14 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function registerPushNotifications(locale: string) {
+export type PushRegistrationResult =
+  | { status: 'ok'; token: string }
+  | { status: 'no-device' | 'denied' | 'no-project-id' }
+  | { status: 'error'; error: string };
+
+export async function registerPushNotifications(locale: string): Promise<PushRegistrationResult> {
   if (!Device.isDevice) {
-    return null;
+    return { status: 'no-device' };
   }
 
   const permission = await Notifications.getPermissionsAsync();
@@ -35,7 +40,7 @@ export async function registerPushNotifications(locale: string) {
   }
 
   if (!granted) {
-    return null;
+    return { status: 'denied' };
   }
 
   if (Platform.OS === 'android') {
@@ -47,7 +52,7 @@ export async function registerPushNotifications(locale: string) {
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
   if (!projectId) {
-    return null;
+    return { status: 'no-project-id' };
   }
 
   let installationId = await SecureStore.getItemAsync(secureStoreKeys.installationId);
@@ -56,12 +61,16 @@ export async function registerPushNotifications(locale: string) {
     await SecureStore.setItemAsync(secureStoreKeys.installationId, installationId);
   }
 
-  const token = await Notifications.getExpoPushTokenAsync({ projectId });
-  await mobileApi.registerDevice({
-    installation_id: installationId,
-    expo_push_token: token.data,
-    platform: Platform.OS === 'ios' ? 'ios' : 'android',
-    locale,
-  });
-  return token.data;
+  try {
+    const token = await Notifications.getExpoPushTokenAsync({ projectId });
+    await mobileApi.registerDevice({
+      installation_id: installationId,
+      expo_push_token: token.data,
+      platform: Platform.OS === 'ios' ? 'ios' : 'android',
+      locale,
+    });
+    return { status: 'ok', token: token.data };
+  } catch (e) {
+    return { status: 'error', error: e instanceof Error ? e.message : String(e) };
+  }
 }

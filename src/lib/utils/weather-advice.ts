@@ -82,8 +82,12 @@ function categorize(task: Pick<TaskRecord, 'task_type' | 'title'>): TaskWeatherC
 export interface TaskWeatherAdvice {
   /** block = clearly a poor day; caution = doable but not ideal. */
   level: 'block' | 'caution';
-  text: string;
+  /** i18n key + params; resolve with t() at the call site so advice translates. */
+  key: string;
+  params?: Record<string, string | number>;
 }
+
+const r = (n: number | null) => (n != null ? Math.round(n) : 0);
 
 /** Weather note for a single task today, or null if weather is irrelevant to it. */
 export function weatherAdviceForTask(
@@ -93,59 +97,56 @@ export function weatherAdviceForTask(
   if (!w) return null;
   switch (categorize(task)) {
     case 'spray':
-      if (!w.sprayingOk) {
-        const reason = w.windy ? 'Strong wind is expected' : 'Rain is likely later today';
-        return {
-          level: 'block',
-          text: `${reason} — spray can drift or wash off. Wait for a calm, dry window.`,
-        };
-      }
+      if (!w.sprayingOk)
+        return w.windy
+          ? { level: 'block', key: 'weatherAdvice.sprayWind', params: { wind: r(w.windKmh) } }
+          : { level: 'block', key: 'weatherAdvice.sprayRain', params: { rain: r(w.rainProbability) } };
       return null;
     case 'fertilize':
-      if (w.heavyRain)
-        return {
-          level: 'block',
-          text: 'Heavy rain today can wash fertilizer away. Apply on a drier day.',
-        };
-      if (w.rainLikely)
-        return { level: 'caution', text: 'Light rain expected — avoid applying right before a downpour.' };
+      if (w.heavyRain) return { level: 'block', key: 'weatherAdvice.fertilizeHeavyRain' };
+      if (w.rainLikely) return { level: 'caution', key: 'weatherAdvice.fertilizeRain' };
       return null;
     case 'fieldwork':
-      if (w.fieldWorkHard)
-        return {
-          level: 'block',
-          text: 'Wet or windy today — field work is hard and can damage soil. Try once it dries.',
-        };
+      if (w.fieldWorkHard) return { level: 'block', key: 'weatherAdvice.fieldworkHard' };
       return null;
     case 'irrigate':
       if (w.rainLikely)
-        return {
-          level: 'caution',
-          text: 'Rain is expected today — you may not need to irrigate. Check the soil first.',
-        };
+        return { level: 'caution', key: 'weatherAdvice.irrigateRain', params: { rain: r(w.rainProbability) } };
       return null;
     case 'plant':
-      if (w.heavyRain)
-        return { level: 'caution', text: 'Heavy rain today — seeds can wash out. A lighter day is safer.' };
+      if (w.heavyRain) return { level: 'caution', key: 'weatherAdvice.plantHeavyRain' };
       return null;
     default:
-      if (w.veryHot)
-        return { level: 'caution', text: 'Very hot today — work in the early morning or evening and stay hydrated.' };
+      if (w.veryHot) return { level: 'caution', key: 'weatherAdvice.veryHotGeneric', params: { temp: r(w.tempHigh) } };
       return null;
   }
 }
 
 export interface WorkabilityHeadline {
   tone: 'good' | 'warn';
-  text: string;
+  /** i18n key + params; resolve with t() at the call site. */
+  key: string;
+  params?: Record<string, string | number>;
 }
 
-/** One-line "is today a good field day?" summary for the weather widget. */
+/**
+ * One-line "is today a good field day?" summary for the weather widget.
+ *
+ * Intentionally NOT trigger-happy: it only *warns* when conditions genuinely
+ * make general field work hard (heavy rain / strong wind) or dangerous (extreme
+ * heat). Ordinary rain is framed as good news for the crop, and spraying-specific
+ * caution is left to the per-task note (so a farmer with no spray task today
+ * isn't told the day is "bad"). Every variant carries the live number so the
+ * line visibly changes day to day.
+ */
 export function workabilityHeadline(w: TodayWeather | null): WorkabilityHeadline | null {
   if (!w) return null;
-  if (w.fieldWorkHard) return { tone: 'warn', text: 'Rain or wind expected — tough day for field work' };
-  if (!w.sprayingOk) return { tone: 'warn', text: 'Rain or wind expected later — not ideal for spraying' };
-  if (w.veryHot) return { tone: 'warn', text: 'Very hot today — work in the cool hours' };
-  if (w.rainLikely) return { tone: 'good', text: 'Rain likely later today — good for the crop, plan dry jobs around it' };
-  return { tone: 'good', text: 'Good conditions for field work today' };
+  if (w.fieldWorkHard) return { tone: 'warn', key: 'weatherAdvice.toughFieldwork', params: { wind: r(w.windKmh) } };
+  if (w.veryHot) return { tone: 'warn', key: 'weatherAdvice.veryHot', params: { temp: r(w.tempHigh) } };
+  if (w.rainLikely)
+    return w.rainProbability != null
+      ? { tone: 'good', key: 'weatherAdvice.rainLikely', params: { rain: r(w.rainProbability) } }
+      : { tone: 'good', key: 'weatherAdvice.rainLikelyPlain' };
+  if (w.hot) return { tone: 'good', key: 'weatherAdvice.warmGood', params: { temp: r(w.tempHigh) } };
+  return { tone: 'good', key: 'weatherAdvice.goodDay' };
 }

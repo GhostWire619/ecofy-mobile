@@ -5,7 +5,6 @@ import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SkeletonCard } from '@/components/state/skeleton';
 import { mobileApi } from '@/lib/api/mobile';
 import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord } from '@/lib/domain/types';
 import { createId } from '@/lib/utils/id';
@@ -402,9 +402,10 @@ export function LogbookScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {isLoading ? (
-          <View style={s.centerState}>
-            <ActivityIndicator color={theme.colors.primary} />
-            <Text style={s.loadingText}>{t('logbook.loadingNotes')}</Text>
+          <View style={{ gap: 12 }}>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
           </View>
         ) : isError ? (
           <View style={s.emptyState}>

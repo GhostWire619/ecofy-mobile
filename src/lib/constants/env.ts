@@ -42,10 +42,18 @@ export const envDebug = {
   environmentName: env.environmentName,
 };
 
+// Public legal pages served by the backend at unversioned /legal/* URLs.
+const legalOrigin = env.apiUrl.replace(/\/+$/, '');
+export const legalUrls = {
+  privacy: `${legalOrigin}/legal/privacy`,
+  terms: `${legalOrigin}/legal/terms`,
+} as const;
+
 export const secureStoreKeys = {
   accessToken: 'ecofy_access_token',
   refreshToken: 'ecofy_refresh_token',
   user: 'ecofy_user',
   localeOverride: 'ecofy_locale_override',
   installationId: 'ecofy_installation_id',
+  locationDisclosureShown: 'ecofy_location_disclosure_v1',
 } as const;

@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { Screen } from '@/components/layout/screen';
+import { SkeletonCard } from '@/components/state/skeleton';
 import { mobileApi } from '@/lib/api/mobile';
 import { farmRepository } from '@/lib/db/repositories';
 import type { FarmHealthSummary, FarmRecord, JourneyRecord, WeatherCacheRecord } from '@/lib/domain/types';
@@ -383,8 +384,10 @@ export function HomeScreen() {
 
       {/* ── Farm list ── */}
       {isLoading ? (
-        <View style={s.loadingRow}>
-          <Text style={s.loadingText}>{t('farms.loadingFarms')}</Text>
+        <View style={{ gap: 12 }}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </View>
       ) : isError ? (
         <View style={s.noResultsCard}>

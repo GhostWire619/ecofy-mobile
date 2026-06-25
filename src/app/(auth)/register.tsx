@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
@@ -8,6 +9,7 @@ import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { TextField } from '@/components/forms/text-field';
 import { Screen } from '@/components/layout/screen';
 import { useAuth } from '@/lib/auth/provider';
+import { legalUrls } from '@/lib/constants/env';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
@@ -93,6 +95,17 @@ export default function RegisterScreen() {
           onChangeText={(value) => setForm((current) => ({ ...current, location: value }))}
         />
         {error ? <Text style={styles.error}>{t(error)}</Text> : null}
+        <Text style={styles.consent}>
+          {t('auth.consentPrefix')}
+          <Text style={styles.link} onPress={() => void WebBrowser.openBrowserAsync(legalUrls.terms)}>
+            {t('auth.consentTerms')}
+          </Text>
+          {t('auth.consentAnd')}
+          <Text style={styles.link} onPress={() => void WebBrowser.openBrowserAsync(legalUrls.privacy)}>
+            {t('auth.consentPrivacy')}
+          </Text>
+          {t('auth.consentSuffix')}
+        </Text>
         <Button label={loading ? t('auth.creatingAccount') : t('auth.createAccount')} disabled={loading} onPress={() => void submit()} />
         <GoogleSignInButton
           label={t('auth.signUpWithGoogle')}
@@ -118,5 +131,15 @@ const styles = StyleSheet.create({
   },
   error: {
     color: theme.colors.danger,
+  },
+  consent: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+  },
+  link: {
+    color: theme.colors.primary,
+    fontWeight: '700',
   },
 });

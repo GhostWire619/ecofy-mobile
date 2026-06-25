@@ -8,6 +8,7 @@
     "close": "Close",
     "back": "Back",
     "next": "Next",
+    "continue": "Continue",
     "done": "Done",
     "search": "Search",
     "add": "Add",
@@ -308,7 +309,12 @@
     "googleSignUpFailed": "Google sign-up failed",
     "signUpWithGoogle": "Sign up with Google",
     "continueWithGoogle": "Continue with Google",
-    "backToSignIn": "Back to sign in"
+    "backToSignIn": "Back to sign in",
+    "consentPrefix": "By continuing, you agree to our ",
+    "consentTerms": "Terms",
+    "consentAnd": " and ",
+    "consentPrivacy": "Privacy Policy",
+    "consentSuffix": "."
   },
   "nav": {
     "home": "Home",
@@ -673,6 +679,23 @@
     "signingOut": "Signing out…",
     "versionLine": "Ecofy Mobile · offline-first build",
     "memberSince": "Member since {date}",
+    "legal": "Legal",
+    "privacyPolicy": "Privacy Policy",
+    "termsOfService": "Terms of Service",
+    "accountSection": "Account",
+    "deleteAccount": "Delete account",
+    "deleteAccountPending": "Deleting…",
+    "deleteAccountSub": "Permanently remove your account and data",
+    "deleteAccountConfirmTitle": "Delete your account?",
+    "deleteAccountConfirmBody": "Your account will be locked now and permanently deleted after 30 days. Sign in again within 30 days to cancel. This removes your farms, logs and records.",
+    "deleteAccountConfirmCta": "Delete my account",
+    "deleteAccountFailedTitle": "Couldn't delete account",
+    "deleteAccountFailedBody": "Something went wrong. Check your connection and try again.",
+    "sendTestNotification": "Send test notification",
+    "sendTestNotificationSub": "Check push notifications are working",
+    "testNotifSent": "Sent to {n} device(s). Check your notification tray.",
+    "testNotifNoDevice": "No registered device yet — make sure notifications are allowed, then try again.",
+    "testNotifFailed": "Couldn't send the test. Check your connection and try again.",
     "dataPrivacy": "Data & Privacy",
     "dailyReminders": "Daily Reminders",
     "dailyRemindersDesc": "Get reminded about your daily tasks",
@@ -858,5 +881,46 @@
     "loadingFarm": "Loading your farm...",
     "myCrop": "My Crop",
     "myFarm": "My Farm"
+  },
+  "weatherAdvice": {
+    "toughFieldwork": "Heavy rain or strong wind ({wind} km/h) — tough day for field work",
+    "veryHot": "Very hot ({temp}°) — work in the cool morning or evening",
+    "rainLikely": "Rain likely today ({rain}%) — good for the crop, plan dry jobs around it",
+    "rainLikelyPlain": "Rain likely today — good for the crop, plan dry jobs around it",
+    "warmGood": "Warm and dry ({temp}°) — a good day for field work",
+    "goodDay": "Good conditions for field work today",
+    "sprayWind": "Strong wind ({wind} km/h) — spray can drift. Wait for a calmer window.",
+    "sprayRain": "Rain likely later ({rain}%) — spray can wash off. Wait for a dry window.",
+    "fertilizeHeavyRain": "Heavy rain today can wash fertilizer away. Apply on a drier day.",
+    "fertilizeRain": "Light rain expected — avoid applying right before a downpour.",
+    "fieldworkHard": "Wet or windy today — field work is hard and can damage soil. Try once it dries.",
+    "irrigateRain": "Rain expected today ({rain}%) — you may not need to irrigate. Check the soil first.",
+    "plantHeavyRain": "Heavy rain today — seeds can wash out. A lighter day is safer.",
+    "veryHotGeneric": "Very hot today ({temp}°) — work early or late and stay hydrated."
+  },
+  "journeyStart": {
+    "cta": "Start crop journey",
+    "title": "Start your crop journey",
+    "subtitle": "Pick your crop and when you're planting — we'll build your day-by-day plan.",
+    "cropLabel": "Crop",
+    "whenLabel": "When are you planting?",
+    "planted": "Already planted",
+    "thisMonth": "Planting now",
+    "later": "Planting later",
+    "start": "Start journey",
+    "errNoCrop": "Please pick a crop first.",
+    "errFailed": "Couldn't start the journey. Please try again."
+  },
+  "mapHelp": {
+    "title": "Add your farm in 3 steps",
+    "step1": "Go to your farm — or stand at one corner of it.",
+    "step2": "Tap “My location” to drop a pin, or “Walk” to trace the edges as you walk around.",
+    "step3": "Check the spot on the map, then enter your farm name below and save.",
+    "gotIt": "Got it"
+  },
+  "location": {
+    "disclosureTitle": "Ecofy uses your location",
+    "disclosureBody": "Ecofy collects your device location to place and measure your farm on the map and to improve weather and agronomy guidance. Location is only used while you are using the app — never in the background.",
+    "permissionDenied": "Location permission is needed to capture your farm position. You can enable it in Settings."
   }
 }

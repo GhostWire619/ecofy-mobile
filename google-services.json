@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "352091933555",
+    "project_id": "gen-lang-client-0661479495",
+    "storage_bucket": "gen-lang-client-0661479495.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:352091933555:android:5373dd4f78e102326e1306",
+        "android_client_info": {
+          "package_name": "com.ecofy.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "352091933555-k38kmi14olefcrvvoeben8n2mr324rum.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAfwspdAJUXibQVhpk21P24sokIr0QF7Nw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "352091933555-k38kmi14olefcrvvoeben8n2mr324rum.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

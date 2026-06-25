@@ -25,7 +25,7 @@ import { theme } from '@/lib/theme';
 type JourneyTab = 'milestones' | 'tasks';
 
 export function JourneyScreen() {
-  const { t } = useI18n();
+  const { t, localize } = useI18n();
   const { data: engagement } = useEngagement();
   const [celebrating, setCelebrating] = useState<AchievementBadge | null>(null);
   const [activeTab, setActiveTab] = useState<JourneyTab>('tasks');
@@ -247,7 +247,7 @@ export function JourneyScreen() {
                   )}
                 </View>
                 <View style={styles.milestoneCopy}>
-                  <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+                  <Text style={styles.milestoneTitle}>{localize(milestone.title)}</Text>
                   {milestone.description ? (
                     <Text style={styles.copy} numberOfLines={2}>{milestone.description}</Text>
                   ) : null}
@@ -328,7 +328,7 @@ export function JourneyScreen() {
           <Card>
             <View style={styles.rowBetween}>
               <View style={{ flex: 1, gap: 4 }}>
-                <Text style={styles.cardTitle}>{task.title}</Text>
+                <Text style={styles.cardTitle}>{localize(task.title)}</Text>
                 {task.description ? <Text style={styles.copy}>{task.description}</Text> : null}
               </View>
               <View style={styles.taskMeta}>
@@ -363,7 +363,7 @@ export function JourneyScreen() {
           {upcomingTasks.map((task) => (
             <View key={task.id} style={styles.upcomingRow}>
               <Ionicons name="time-outline" size={16} color={theme.colors.textMuted} />
-              <Text style={styles.upcomingText} numberOfLines={1}>{task.title}</Text>
+              <Text style={styles.upcomingText} numberOfLines={1}>{localize(task.title)}</Text>
               {task.due_date ? (
                 <Text style={styles.upcomingDate}>
                   {new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
@@ -380,7 +380,7 @@ export function JourneyScreen() {
           {doneTasks.map((task) => (
             <View key={task.id} style={styles.doneRow}>
               <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
-              <Text style={styles.doneText} numberOfLines={1}>{task.title}</Text>
+              <Text style={styles.doneText} numberOfLines={1}>{localize(task.title)}</Text>
             </View>
           ))}
           </View>
