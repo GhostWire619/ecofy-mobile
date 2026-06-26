@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { AppleSignInButton } from '@/components/auth/apple-sign-in-button';
 import { Button } from '@/components/core/button';
 import { Card } from '@/components/core/card';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
@@ -13,7 +14,7 @@ import { theme } from '@/lib/theme';
 
 export default function LoginScreen() {
   const { t } = useI18n();
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, loginWithApple } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +39,18 @@ export default function LoginScreen() {
       await loginWithGoogle(idToken);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'auth.googleSignInFailed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onAppleToken(identityToken: string, fullName?: string | null) {
+    setLoading(true);
+    setError(null);
+    try {
+      await loginWithApple(identityToken, fullName);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'auth.appleSignInFailed');
     } finally {
       setLoading(false);
     }
@@ -73,6 +86,11 @@ export default function LoginScreen() {
           label={t('auth.continueWithGoogle')}
           disabled={loading}
           onToken={(token) => void onGoogleToken(token)}
+          onError={(message) => setError(message)}
+        />
+        <AppleSignInButton
+          disabled={loading}
+          onToken={(token, fullName) => void onAppleToken(token, fullName)}
           onError={(message) => setError(message)}
         />
         <Button

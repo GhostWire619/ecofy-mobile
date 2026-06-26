@@ -22,6 +22,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: "com.ecofy.mobile",
     supportsTablet: false,
+    usesAppleSignIn: true,
     config: {
       usesNonExemptEncryption: false,
     },
@@ -63,6 +64,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-dev-client",
+    "expo-apple-authentication",
     "expo-localization",
     "expo-secure-store",
     "expo-background-task",
@@ -99,6 +101,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "@rnmapbox/maps",
       {
         RNMapboxMapsUseV11: true,
+        // Secret download token (sk.…) so cloud builds can fetch the Mapbox SDK.
+        // Set MAPBOX_DOWNLOADS_TOKEN as an EAS secret for iOS/Android cloud builds.
+        ...(process.env.MAPBOX_DOWNLOADS_TOKEN
+          ? { RNMapboxMapsDownloadToken: process.env.MAPBOX_DOWNLOADS_TOKEN }
+          : {}),
       },
     ],
     "@react-native-google-signin/google-signin",

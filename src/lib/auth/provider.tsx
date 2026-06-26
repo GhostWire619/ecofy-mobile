@@ -25,6 +25,11 @@ type AuthContextValue = AuthState & {
   onboardingComplete: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: (idToken: string, preferredLanguage?: 'en' | 'sw') => Promise<void>;
+  loginWithApple: (
+    identityToken: string,
+    fullName?: string | null,
+    preferredLanguage?: 'en' | 'sw',
+  ) => Promise<void>;
   register: (input: {
     email: string;
     password: string;
@@ -132,6 +137,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [completeSignIn],
   );
 
+  const loginWithApple = useCallback(
+    async (identityToken: string, fullName?: string | null, preferredLanguage: 'en' | 'sw' = 'en') => {
+      const response = await authApi.appleSignIn(identityToken, fullName, preferredLanguage);
+      await completeSignIn(response);
+    },
+    [completeSignIn],
+  );
+
   const register = useCallback(
     async (input: {
       email: string;
@@ -196,13 +209,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       onboardingComplete,
       login,
       loginWithGoogle,
+      loginWithApple,
       register,
       logout,
       deleteAccount,
       refreshBootstrap,
       markOnboardingComplete,
     }),
-    [authState, onboardingComplete, login, loginWithGoogle, register, logout, deleteAccount, refreshBootstrap, markOnboardingComplete],
+    [authState, onboardingComplete, login, loginWithGoogle, loginWithApple, register, logout, deleteAccount, refreshBootstrap, markOnboardingComplete],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

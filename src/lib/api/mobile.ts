@@ -189,6 +189,22 @@ export const authApi = {
       auth: false,
     });
   },
+  async appleSignIn(
+    identityToken: string,
+    fullName?: string | null,
+    preferredLanguage: 'en' | 'sw' = 'en',
+  ) {
+    return apiRequest<AuthResponse>('/api/auth/apple', {
+      method: 'POST',
+      body: JSON.stringify({
+        identity_token: identityToken,
+        full_name: fullName ?? undefined,
+        client_app: 'ecofy-mobile',
+        preferred_language: preferredLanguage,
+      }),
+      auth: false,
+    });
+  },
   /** Request account deletion (store-compliance). 30-day grace then permanent purge. */
   async requestAccountDeletion() {
     return apiRequest<{ success: boolean; grace_days: number; scheduled_purge_at: string }>(
