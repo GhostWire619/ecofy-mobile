@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SkeletonCard } from '@/components/state/skeleton';
 import { mobileApi } from '@/lib/api/mobile';
+import { farmRepository } from '@/lib/db/repositories';
 import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord } from '@/lib/domain/types';
 import { createId } from '@/lib/utils/id';
 import { toAbsoluteUrl } from '@/lib/utils/url';
@@ -41,7 +42,9 @@ const OP_ICONS: Record<OperationType, React.ComponentProps<typeof Ionicons>['nam
 type LogWithImages = LogRecord & {
   images?: { url: string; thumbnail_url?: string | null }[];
 };
-type FarmOption = { id: string; name: string; journeyId: string };
+// journeyId is null when the farm has no active/planned journey — such farms are
+// shown but not loggable (the backend requires a journey to attach a note to).
+type FarmOption = { id: string; name: string; journeyId: string | null };
 type EnrichedLog = LogWithImages & { farmName: string };
 
 /** Best available thumbnail for a note (server thumb → full image → snapshot). */
@@ -88,20 +91,34 @@ export function buildLogImageRecords(
   }));
 }
 
+/** First farm that can actually take a note (has an active/planned journey). */
+function firstLoggableFarmId(options: FarmOption[]): string {
+  return options.find((f) => f.journeyId)?.id ?? options[0]?.id ?? '';
+}
+
 export function AddLogSheet({
   farmOptions,
   onClose,
   onSaved,
   lockedFarmId,
+  defaultFarmId,
 }: {
   farmOptions: FarmOption[];
   onClose: () => void;
   onSaved: () => void;
   lockedFarmId?: string;
+  /** The farmer's active farm — preselected if it can take a note. */
+  defaultFarmId?: string | null;
 }) {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
-  const [farmId, setFarmId] = useState(lockedFarmId ?? farmOptions[0]?.id ?? '');
+  // Prefer the active farm (if loggable), else the first loggable farm.
+  const initialFarmId = (() => {
+    if (lockedFarmId) return lockedFarmId;
+    const active = farmOptions.find((f) => f.id === defaultFarmId && f.journeyId);
+    return active?.id ?? firstLoggableFarmId(farmOptions);
+  })();
+  const [farmId, setFarmId] = useState(initialFarmId);
   const [opType, setOpType] = useState<OperationType>('Scouting');
   const [notes, setNotes] = useState('');
   const [cost, setCost] = useState('');
@@ -169,6 +186,12 @@ export function AddLogSheet({
   async function save() {
     if (!farmId || !selectedFarm) {
       setError('logbook.errChooseFarm');
+      return;
+    }
+    if (!selectedFarm.journeyId) {
+      // Backend attaches every note to a journey — block the save with a clear
+      // reason instead of letting it fail with a 409.
+      setError('logbook.errFarmNoJourney');
       return;
     }
     setSaving(true);
@@ -264,22 +287,46 @@ export function AddLogSheet({
 
                 {isFarmMenuOpen ? (
                   <View style={sheet.dropdownMenu}>
-                    {farmOptions.map((f) => (
-                      <TouchableOpacity
-                        key={f.id}
-                        style={sheet.dropdownItem}
-                        onPress={() => {
-                          setFarmId(f.id);
-                          setIsFarmMenuOpen(false);
-                        }}
-                      >
-                        <Text style={[sheet.dropdownItemText, farmId === f.id && sheet.dropdownItemTextActive]}>{f.name}</Text>
-                        {farmId === f.id ? (
-                          <Ionicons name="checkmark" size={16} color={theme.colors.primary} />
-                        ) : null}
-                      </TouchableOpacity>
-                    ))}
+                    {/* Loggable farms first; journey-less farms are shown but disabled. */}
+                    {[...farmOptions]
+                      .sort((a, b) => Number(Boolean(b.journeyId)) - Number(Boolean(a.journeyId)))
+                      .map((f) => {
+                        const loggable = Boolean(f.journeyId);
+                        return (
+                          <TouchableOpacity
+                            key={f.id}
+                            style={[sheet.dropdownItem, !loggable && sheet.dropdownItemDisabled]}
+                            disabled={!loggable}
+                            onPress={() => {
+                              setFarmId(f.id);
+                              setError(null);
+                              setIsFarmMenuOpen(false);
+                            }}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  sheet.dropdownItemText,
+                                  farmId === f.id && sheet.dropdownItemTextActive,
+                                  !loggable && sheet.dropdownItemTextDisabled,
+                                ]}
+                              >
+                                {f.name}
+                              </Text>
+                              {!loggable ? (
+                                <Text style={sheet.dropdownItemHint}>{t('logbook.farmNeedsJourney')}</Text>
+                              ) : null}
+                            </View>
+                            {loggable && farmId === f.id ? (
+                              <Ionicons name="checkmark" size={16} color={theme.colors.primary} />
+                            ) : null}
+                          </TouchableOpacity>
+                        );
+                      })}
                   </View>
+                ) : null}
+                {farmOptions.some((f) => !f.journeyId) ? (
+                  <Text style={sheet.fieldHint}>{t('logbook.startJourneyToLogHint')}</Text>
                 ) : null}
               </View>
             ) : null}
@@ -349,6 +396,7 @@ export function LogbookScreen() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['logbook-online'],
     queryFn: async () => {
+      const activeFarmId = await farmRepository.getSelectedFarmId().catch(() => null);
       const farms = asArray<FarmRecord>(await mobileApi.listFarms().catch(() => []));
 
       const results = await Promise.all(
@@ -376,15 +424,18 @@ export function LogbookScreen() {
         )
         .sort((a, b) => b.date.localeCompare(a.date));
 
-      const farmOptions: FarmOption[] = results
-        .filter((r) => r.journey != null)
-        .map((r) => ({
-          id: String(r.farm.id),
-          name: r.farm.name ?? 'Farm',
-          journeyId: r.journey!.id,
-        }));
+      // Every farm is listed so the farmer never wonders where a farm went; ones
+      // without an active/planned journey carry journeyId=null and render disabled.
+      const farmOptions: FarmOption[] = results.map((r) => ({
+        id: String(r.farm.id),
+        name: r.farm.name ?? 'Farm',
+        journeyId:
+          r.journey && (r.journey.status === 'active' || r.journey.status === 'planned')
+            ? String(r.journey.id)
+            : null,
+      }));
 
-      return { farmOptions, logs: allLogs };
+      return { farmOptions, logs: allLogs, activeFarmId: activeFarmId ?? null };
     },
   });
 
@@ -469,6 +520,7 @@ export function LogbookScreen() {
       {showAdd && data?.farmOptions ? (
         <AddLogSheet
           farmOptions={data.farmOptions}
+          defaultFarmId={data.activeFarmId}
           onClose={() => setShowAdd(false)}
           onSaved={() => void onSaved()}
         />
@@ -803,6 +855,7 @@ const sheet = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#ece5d7',
   },
+  dropdownItemDisabled: { opacity: 0.55 },
   dropdownItemText: {
     fontSize: 15,
     color: theme.colors.text,
@@ -811,6 +864,8 @@ const sheet = StyleSheet.create({
     color: theme.colors.primary,
     fontWeight: '700',
   },
+  dropdownItemTextDisabled: { color: theme.colors.textMuted },
+  dropdownItemHint: { fontSize: 11, color: theme.colors.textMuted, marginTop: 2 },
 
   pillRow: { flexDirection: 'row', gap: 8 },
   pill: {

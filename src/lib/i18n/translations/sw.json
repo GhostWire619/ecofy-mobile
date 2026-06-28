@@ -130,6 +130,9 @@
     "errPhotoPerm": "Ruhusa ya maktaba ya picha inahitajika kuongeza picha.",
     "errCameraPerm": "Ruhusa ya kamera inahitajika kupiga picha.",
     "errChooseFarm": "Chagua shamba kwanza.",
+    "errFarmNoJourney": "Anza safari ya zao kwenye shamba hili kabla ya kuongeza maelezo.",
+    "farmNeedsJourney": "Bado hakuna safari ya zao",
+    "startJourneyToLogHint": "Mashamba yasiyo na safari ya zao hayawezi kupokea maelezo bado — anzisha safari kutoka dashibodi ya shamba.",
     "errSaveFailed": "Imeshindwa kuhifadhi."
   },
   "farmCards": {
@@ -911,6 +914,7 @@
     "thisMonth": "Napanda sasa",
     "later": "Napanda baadaye",
     "start": "Anza safari",
+    "maizeOnlyHint": "Mahindi yanahimiliwa kikamilifu sasa — mazao zaidi yanakuja hivi karibuni.",
     "errNoCrop": "Tafadhali chagua zao kwanza.",
     "errFailed": "Imeshindwa kuanza safari. Tafadhali jaribu tena."
   },

@@ -130,6 +130,9 @@
     "errPhotoPerm": "Photo library permission is required to add images.",
     "errCameraPerm": "Camera permission is required to take a photo.",
     "errChooseFarm": "Choose a farm first.",
+    "errFarmNoJourney": "Start a crop journey on this farm before adding notes.",
+    "farmNeedsJourney": "No crop journey yet",
+    "startJourneyToLogHint": "Farms without a crop journey can't take notes yet — start one from the farm dashboard.",
     "errSaveFailed": "Save failed."
   },
   "farmCards": {
@@ -911,6 +914,7 @@
     "thisMonth": "Planting now",
     "later": "Planting later",
     "start": "Start journey",
+    "maizeOnlyHint": "Maize is fully supported today — more crops are coming soon.",
     "errNoCrop": "Please pick a crop first.",
     "errFailed": "Couldn't start the journey. Please try again."
   },

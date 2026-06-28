@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   type ImageSourcePropType,
   StyleSheet,
@@ -16,14 +15,16 @@ import { AchievementModal, SmartNudges } from '@/components/game';
 import { Card } from '@/components/core/card';
 import { UndoToast } from '@/components/core/undo-toast';
 import { Screen, Section } from '@/components/layout/screen';
-import { SkeletonCard } from '@/components/state/skeleton';
+import { Skeleton, SkeletonCard } from '@/components/state/skeleton';
 import { TaskActionsSheet } from '@/components/tasks/task-actions-sheet';
 import { TaskCompletionSheet } from '@/components/tasks/task-completion-sheet';
 import { StartJourneySheet } from '@/features/farms/start-journey-sheet';
+import { normalizeJourneyRecord } from '@/features/farms/data';
 import { mobileApi } from '@/lib/api/mobile';
 import { useAuth } from '@/lib/auth/provider';
+import { bootstrapCurrentUser } from '@/lib/bootstrap/bootstrap';
 import { decodeInstructions, farmRepository, journeyRepository } from '@/lib/db/repositories';
-import type { AchievementBadge, LiveWeatherResponse, TaskRecord } from '@/lib/domain/types';
+import type { AchievementBadge, JourneyRecord, LiveWeatherResponse, TaskRecord } from '@/lib/domain/types';
 import { useTaskActions } from '@/lib/hooks/use-task-actions';
 import { useTaskCompletion } from '@/lib/hooks/use-task-completion';
 import { useI18n } from '@/lib/i18n';
@@ -115,7 +116,11 @@ function WeatherWeekWidget({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.weatherTitle}>{t('today.weatherThisWeek')}</Text>
-            <Text style={styles.weatherFarm}>Active farm · {farmName}</Text>
+            {loading && !farmName ? (
+              <Skeleton height={10} width={130} style={{ marginTop: 4 }} />
+            ) : (
+              <Text style={styles.weatherFarm}>Active farm · {farmName}</Text>
+            )}
           </View>
         </View>
         {current ? (
@@ -127,13 +132,33 @@ function WeatherWeekWidget({
               {current.conditions ?? 'Current'}
             </Text>
           </View>
+        ) : loading ? (
+          <View style={styles.currentWeather}>
+            <Skeleton height={22} width={46} />
+            <Skeleton height={9} width={38} style={{ marginTop: 5 }} />
+          </View>
         ) : null}
       </View>
 
       {loading ? (
-        <View style={styles.weatherState}>
-          <ActivityIndicator color={theme.colors.primary} />
-          <Text style={styles.weatherStateText}>{t('today.checkingWeek')}</Text>
+        // Skeleton the forecast only — the card chrome (title, farm) is already up,
+        // so the screen feels instant and just the data fills in.
+        <View style={styles.weatherSkeleton}>
+          <View style={styles.forecastLegend}>
+            <Skeleton height={9} width={110} />
+            <Skeleton height={9} width={68} />
+          </View>
+          <View style={styles.forecastRow}>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <View key={i} style={styles.forecastDay}>
+                <Skeleton height={9} width={20} />
+                <Skeleton height={28} width={28} radius={14} style={{ marginVertical: 5 }} />
+                <Skeleton height={12} width={20} />
+                <Skeleton height={9} width={16} style={{ marginTop: 3 }} />
+              </View>
+            ))}
+          </View>
+          <Skeleton height={32} width="100%" radius={12} style={{ marginTop: 4 }} />
         </View>
       ) : error ? (
         <TouchableOpacity style={styles.weatherState} onPress={onRetry} activeOpacity={0.75}>
@@ -264,19 +289,57 @@ export function TodayScreen() {
   const { data, refetch, isRefetching, isLoading } = useQuery({
     queryKey: ['today-screen'],
     queryFn: async () => {
-      const activeFarmId = await farmRepository.getSelectedFarmId();
       const onlineFarms = await mobileApi.listFarms().catch(() => []);
+
+      // Resolve the active farm. If the farmer hasn't picked one, default to the
+      // farm that already has a journey (so Today opens on real work), else the
+      // first farm — and persist it so weather + notes stay on the same farm.
+      let activeFarmId = await farmRepository.getSelectedFarmId();
+      if (!activeFarmId) {
+        const anyJourney = await journeyRepository.getActiveJourney().catch(() => null);
+        activeFarmId =
+          anyJourney?.farm_id ?? (onlineFarms[0]?.id ? String(onlineFarms[0].id) : null);
+        if (activeFarmId) {
+          await farmRepository.setSelectedFarmId(activeFarmId).catch(() => undefined);
+        }
+      }
+
       const activeFarm = activeFarmId
         ? onlineFarms.find((farm) => String(farm.id) === String(activeFarmId)) ??
           (await farmRepository.getFarm(activeFarmId))
         : null;
-      const journey = activeFarmId
-        ? await journeyRepository.getActiveJourneyForFarm(activeFarmId)
-        : await journeyRepository.getActiveJourney();
+
+      // Detect the journey the same authoritative way the Farms tab does — the
+      // server list — so an already-started journey is never missed just because
+      // the local DB hasn't caught up. Fall back to local when offline.
+      let journey: JourneyRecord | null = null;
+      if (activeFarmId) {
+        try {
+          const serverJourneys = (await mobileApi.listFarmJourneys(String(activeFarmId))).map(
+            normalizeJourneyRecord,
+          );
+          journey =
+            serverJourneys.find((j) => j.status === 'active' || j.status === 'planned') ?? null;
+        } catch {
+          // Offline / request failed — fall back to the local copy below.
+        }
+        if (!journey) {
+          journey = await journeyRepository.getActiveJourneyForFarm(String(activeFarmId));
+        }
+      }
+
       if (!journey) {
         return { activeFarm, journey: null as null, tasks: [] as TaskRecord[] };
       }
-      const tasks = await journeyRepository.listTasks(journey.id);
+
+      // Tasks live in the local DB (hydrated by bootstrap). If the server knew
+      // about this journey but the local DB doesn't have its tasks yet, pull a
+      // fresh bootstrap once so Today shows the plan instead of an empty journey.
+      let tasks = await journeyRepository.listTasks(journey.id);
+      if (tasks.length === 0) {
+        await bootstrapCurrentUser().catch(() => undefined);
+        tasks = await journeyRepository.listTasks(journey.id);
+      }
       return { activeFarm, journey, tasks };
     },
   });
@@ -364,11 +427,11 @@ export function TodayScreen() {
         </Text>
       </View>
 
-      {activeFarm ? (
+      {activeFarm || isLoading ? (
         <WeatherWeekWidget
-          farmName={activeFarm.name}
+          farmName={activeFarm?.name ?? ''}
           weather={weatherQuery.data}
-          loading={weatherQuery.isLoading}
+          loading={isLoading || weatherQuery.isLoading}
           error={weatherQuery.isError}
           onRetry={() => void weatherQuery.refetch()}
         />
@@ -590,6 +653,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 10,
   },
+  weatherSkeleton: { gap: 10 },
   weatherStateText: { flexShrink: 1, fontSize: 12, color: theme.colors.textMuted },
   weatherRetry: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
   forecastLegend: {

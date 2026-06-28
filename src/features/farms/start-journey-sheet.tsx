@@ -24,6 +24,12 @@ type PlantingChoice = 'planted' | 'this_month' | 'later';
 // future (planned) journey. createJourneyDraft marks future dates planned, else active.
 const OFFSET_DAYS: Record<PlantingChoice, number> = { planted: -14, this_month: 0, later: 30 };
 
+// The advisory engine only drives a full day-by-day plan for maize today. Other
+// crops are shown so the catalog looks alive, but are gated ("coming soon") so a
+// farmer never starts a journey the engine can't actually guide.
+const SUPPORTED_CROP_IDS = new Set<string>(['maize-h513']);
+const DEFAULT_CROP_ID = 'maize-h513';
+
 /**
  * The one-tap way to start a crop journey for a farm that doesn't have one yet.
  * Pick crop + roughly when planting → creates the journey (+ tasks/milestones)
@@ -48,7 +54,8 @@ export function StartJourneySheet({
 }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const [cropId, setCropId] = useState('');
+  // Default to the one fully-supported crop so the farmer can start in one tap.
+  const [cropId, setCropId] = useState(DEFAULT_CROP_ID);
   const [choice, setChoice] = useState<PlantingChoice>('this_month');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +86,7 @@ export function StartJourneySheet({
       });
       await queueJourneySync(draft.journey).catch(() => undefined);
       await queryClient.invalidateQueries();
-      setCropId('');
+      setCropId(DEFAULT_CROP_ID);
       setChoice('this_month');
       onStarted?.();
       onClose();
@@ -106,27 +113,44 @@ export function StartJourneySheet({
 
         <Text style={st.label}>{t('journeyStart.cropLabel')}</Text>
         <ScrollView style={st.cropList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-          {cropCatalog.map((c) => {
-            const active = cropId === c.id;
-            return (
-              <TouchableOpacity
-                key={c.id}
-                style={[st.cropRow, active && st.cropRowActive]}
-                onPress={() => {
-                  setCropId(c.id);
-                  setError(null);
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[st.cropName, active && st.cropNameActive]}>{c.common_name}</Text>
-                  {c.local_name ? <Text style={st.cropSub}>{c.local_name}</Text> : null}
-                </View>
-                {active ? <Text style={st.check}>✓</Text> : null}
-              </TouchableOpacity>
-            );
-          })}
+          {/* Supported crops first, then "coming soon" crops the engine can't drive yet. */}
+          {[...cropCatalog]
+            .sort(
+              (a, b) =>
+                Number(SUPPORTED_CROP_IDS.has(b.id)) - Number(SUPPORTED_CROP_IDS.has(a.id)),
+            )
+            .map((c) => {
+              const supported = SUPPORTED_CROP_IDS.has(c.id);
+              const active = cropId === c.id;
+              return (
+                <TouchableOpacity
+                  key={c.id}
+                  style={[st.cropRow, active && st.cropRowActive, !supported && st.cropRowDisabled]}
+                  disabled={!supported}
+                  onPress={() => {
+                    setCropId(c.id);
+                    setError(null);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[st.cropName, active && st.cropNameActive, !supported && st.cropNameDisabled]}>
+                      {c.common_name}
+                    </Text>
+                    {c.local_name ? <Text style={st.cropSub}>{c.local_name}</Text> : null}
+                  </View>
+                  {!supported ? (
+                    <View style={st.soonPill}>
+                      <Text style={st.soonPillText}>{t('common.comingSoon')}</Text>
+                    </View>
+                  ) : active ? (
+                    <Text style={st.check}>✓</Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
         </ScrollView>
+        <Text style={st.cropHint}>{t('journeyStart.maizeOnlyHint')}</Text>
 
         <Text style={st.label}>{t('journeyStart.whenLabel')}</Text>
         <View style={st.choiceRow}>
@@ -214,9 +238,21 @@ const st = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   cropRowActive: { backgroundColor: theme.colors.primary + '12' },
+  cropRowDisabled: { opacity: 0.55 },
   cropName: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
   cropNameActive: { color: theme.colors.primary },
+  cropNameDisabled: { color: theme.colors.textMuted },
   cropSub: { fontSize: 12, color: theme.colors.textMuted },
+  cropHint: { fontSize: 12, color: theme.colors.textMuted, lineHeight: 16, marginTop: 2 },
+  soonPill: {
+    backgroundColor: theme.colors.surfaceMuted,
+    borderRadius: theme.radius.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  soonPillText: { fontSize: 10, fontWeight: '700', color: theme.colors.textMuted },
   check: { fontSize: 16, fontWeight: '800', color: theme.colors.primary },
   choiceRow: { flexDirection: 'row', gap: 8 },
   choice: {
