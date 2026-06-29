@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { mobileApi } from '@/lib/api/mobile';
 import { farmRepository } from '@/lib/db/repositories';
-import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord } from '@/lib/domain/types';
+import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord, PlotRecord } from '@/lib/domain/types';
 import { createId } from '@/lib/utils/id';
 import { toAbsoluteUrl } from '@/lib/utils/url';
 import { useI18n } from '@/lib/i18n';
@@ -123,9 +123,19 @@ export function AddLogSheet({
   const [notes, setNotes] = useState('');
   const [cost, setCost] = useState('');
   const [photos, setPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const [plotId, setPlotId] = useState<string | null>(null);
+  const [dateOffset, setDateOffset] = useState(0); // days back from today
   const [isFarmMenuOpen, setIsFarmMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Plots for the chosen farm — lets a note be pinned to a specific field.
+  const plotsQuery = useQuery({
+    queryKey: ['log-plots', farmId],
+    queryFn: () => mobileApi.listFarmPlots(farmId).catch(() => [] as PlotRecord[]),
+    enabled: !!farmId,
+  });
+  const plots = plotsQuery.data ?? [];
 
   const selectedFarm =
     farmOptions.find((f) => f.id === farmId) ??
@@ -198,15 +208,17 @@ export function AddLogSheet({
     setError(null);
     try {
       const now = new Date().toISOString();
+      const when = new Date();
+      when.setDate(when.getDate() - dateOffset);
       const logId = createId();
       const log: LogRecord = {
         id: logId,
         client_mutation_id: createId('mutation'),
         farm_id: farmId,
         journey_id: selectedFarm.journeyId,
-        plot_id: null,
+        plot_id: plotId,
         operation_type: opType,
-        date: now.slice(0, 10),
+        date: when.toISOString().slice(0, 10),
         cost: cost ? parseFloat(cost) : null,
         notes: notes.trim() || null,
         location_latitude: null,
@@ -299,6 +311,7 @@ export function AddLogSheet({
                             disabled={!loggable}
                             onPress={() => {
                               setFarmId(f.id);
+                              setPlotId(null);
                               setError(null);
                               setIsFarmMenuOpen(false);
                             }}
@@ -347,6 +360,46 @@ export function AddLogSheet({
                     />
                     <Text style={[sheet.opPillText, opType === op && sheet.opPillTextActive]}>
                       {t(`operations.${op.toLowerCase()}`)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {plots.length > 0 ? (
+              <View style={sheet.field}>
+                <Text style={sheet.fieldSubLabel}>{t('logs.plot')}</Text>
+                <View style={sheet.opGrid}>
+                  <TouchableOpacity
+                    style={[sheet.opPill, !plotId && sheet.opPillActive]}
+                    onPress={() => setPlotId(null)}
+                  >
+                    <Text style={[sheet.opPillText, !plotId && sheet.opPillTextActive]}>{t('logs.wholeFarm')}</Text>
+                  </TouchableOpacity>
+                  {plots.map((p) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[sheet.opPill, plotId === p.id && sheet.opPillActive]}
+                      onPress={() => setPlotId(p.id)}
+                    >
+                      <Text style={[sheet.opPillText, plotId === p.id && sheet.opPillTextActive]}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={sheet.field}>
+              <Text style={sheet.fieldSubLabel}>{t('logs.when')}</Text>
+              <View style={sheet.opGrid}>
+                {[0, 1, 2].map((off) => (
+                  <TouchableOpacity
+                    key={off}
+                    style={[sheet.opPill, dateOffset === off && sheet.opPillActive]}
+                    onPress={() => setDateOffset(off)}
+                  >
+                    <Text style={[sheet.opPillText, dateOffset === off && sheet.opPillTextActive]}>
+                      {off === 0 ? t('common.today') : off === 1 ? t('common.yesterday') : t('logs.daysAgo', { n: off })}
                     </Text>
                   </TouchableOpacity>
                 ))}

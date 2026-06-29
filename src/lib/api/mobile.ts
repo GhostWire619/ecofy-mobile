@@ -304,6 +304,37 @@ export const mobileApi = {
       body: JSON.stringify(data),
     }).then((payload) => unwrapApiData<PlotRecord>(payload));
   },
+  createPlot(
+    farmId: string,
+    data: {
+      name: string;
+      plot_code?: string | null;
+      size_hectares?: number | null;
+      size_unit?: string;
+      soil_type?: string | null;
+      coordinates?: { lat: number; lng: number } | null;
+      field_boundary?: Record<string, unknown> | null;
+      mapped_area_hectares?: number | null;
+    },
+  ) {
+    return apiRequest<ApiEnvelope<PlotRecord>>(`/api/farms/${farmId}/plots`, {
+      method: 'POST',
+      auth: true,
+      body: JSON.stringify(data),
+    }).then((payload) => unwrapApiData<PlotRecord>(payload));
+  },
+  deletePlot(farmId: string, plotId: string) {
+    return apiRequest(`/api/farms/${farmId}/plots/${plotId}`, {
+      method: 'DELETE',
+      auth: true,
+    });
+  },
+  getPlotSummary(farmId: string, plotId: string) {
+    return apiRequest<ApiEnvelope<Record<string, unknown>>>(
+      `/api/farms/${farmId}/plots/${plotId}/summary`,
+      { method: 'GET', auth: true },
+    ).then((payload) => unwrapApiData<Record<string, unknown>>(payload));
+  },
   listJourneyLogs(farmId: string, journeyId: string) {
     return withBootstrapFallback(
       () =>

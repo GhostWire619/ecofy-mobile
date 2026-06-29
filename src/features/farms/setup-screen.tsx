@@ -116,8 +116,10 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
   const PEEK_H = 104 + insets.bottom;
   const COLLAPSED_Y = SHEET_H - PEEK_H;
 
-  // Sheet animation
-  const translateY = useSharedValue(COLLAPSED_Y);
+  // Sheet animation. Start expanded (up) so first-time users see the form and
+  // options instead of a peek they might not know to drag up — they can slide it
+  // down to reach the map.
+  const translateY = useSharedValue(0);
   const startY = useSharedValue(0);
 
   const EASE = Easing.out(Easing.cubic);

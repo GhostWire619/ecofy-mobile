@@ -89,6 +89,24 @@ function FarmActionSheet({
       onPress: () => { onClose(); router.push(`/farms-map/${farm.id}` as any); },
     },
     {
+      icon: 'grid-outline',
+      label: t('farms.managePlots'),
+      testID: 'farm-action-manage-plots',
+      onPress: () => { onClose(); router.push(`/plots/${farm.id}` as any); },
+    },
+    {
+      icon: 'cube-outline',
+      label: t('farms.manageResources'),
+      testID: 'farm-action-manage-resources',
+      onPress: () => { onClose(); router.push(`/resources/${farm.id}` as any); },
+    },
+    {
+      icon: 'people-outline',
+      label: t('farms.manageWorkers'),
+      testID: 'farm-action-manage-workers',
+      onPress: () => { onClose(); router.push(`/workers/${farm.id}` as any); },
+    },
+    {
       icon: isActive ? 'checkmark-circle-outline' : 'radio-button-on-outline',
       label: isActive ? t('farms.activeFarm') : t('farms.setActiveFarm'),
       testID: 'farm-action-set-active',

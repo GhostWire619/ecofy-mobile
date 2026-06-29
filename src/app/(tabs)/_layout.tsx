@@ -117,6 +117,18 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* ── Finance (wealth) ── */}
+      <Tabs.Screen
+        name="finance"
+        options={{
+          title: t('tabs.finance'),
+          tabBarLabel: ({ focused, color }) => (
+            <TabLabel label={t('tabs.finance')} focused={focused} color={color} />
+          ),
+          tabBarIcon: ({ focused, color }) => <TabIcon name="cash-outline" focused={focused} color={color} />,
+        }}
+      />
+
       {/* ── Journey (gamified guide) ── */}
       <Tabs.Screen
         name="journey"
@@ -129,31 +141,21 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* ── Notes ── */}
+      {/* ── More (Notes, Prices, Explore, Scan, Assistant, Settings) ── */}
       <Tabs.Screen
-        name="logbook"
+        name="more"
         options={{
-          title: t('tabs.notes'),
+          title: t('tabs.more'),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label={t('tabs.notes')} focused={focused} color={color} />
+            <TabLabel label={t('tabs.more')} focused={focused} color={color} />
           ),
-          tabBarIcon: ({ focused, color }) => <TabIcon name="document-text-outline" focused={focused} color={color} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="ellipsis-horizontal-outline" focused={focused} color={color} />,
         }}
       />
 
-      {/* ── Prices ── */}
-      <Tabs.Screen
-        name="market"
-        options={{
-          title: t('tabs.prices'),
-          tabBarLabel: ({ focused, color }) => (
-            <TabLabel label={t('tabs.prices')} focused={focused} color={color} />
-          ),
-          tabBarIcon: ({ focused, color }) => <TabIcon name="stats-chart-outline" focused={focused} color={color} />,
-        }}
-      />
-
-      {/* Hidden routes (still accessible, not shown in tab bar) */}
+      {/* Hidden routes (still accessible via More / quick actions, not in tab bar) */}
+      <Tabs.Screen name="logbook" options={{ href: null, title: t('tabs.notes') }} />
+      <Tabs.Screen name="market"  options={{ href: null, title: t('tabs.prices') }} />
       <Tabs.Screen name="explore" options={{ href: null }} />
       <Tabs.Screen name="farms"   options={{ href: null }} />
     </Tabs>
