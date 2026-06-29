@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Image, type ImageSource } from 'expo-image';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -7,11 +7,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
+  Pressable,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Button } from '@/components/core/button';
 import { INTRO_SEEN_KEY, prefsRepository } from '@/lib/db/repositories';
@@ -19,24 +20,28 @@ import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 type Slide = {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  image: ImageSource;
+  kicker: string;
   en: { title: string; body: string };
   sw: { title: string; body: string };
 };
 
 const SLIDES: Slide[] = [
   {
-    icon: 'calendar-outline',
+    image: require('../../assets/images/onboarding/season-plan.png'),
+    kicker: '01 · PLAN',
     en: { title: 'Your season, planned', body: 'Know exactly what to do each week — from planting to harvest.' },
     sw: { title: 'Msimu wako, umepangwa', body: 'Jua la kufanya kila wiki — kupanda hadi kuvuna.' },
   },
   {
-    icon: 'scan-outline',
+    image: require('../../assets/images/onboarding/crop-scan.png'),
+    kicker: '02 · SPOT',
     en: { title: 'Spot problems early', body: 'Snap a photo to identify pests and diseases — and what to do about them.' },
     sw: { title: 'Gundua matatizo mapema', body: 'Piga picha kutambua wadudu na magonjwa — na la kufanya.' },
   },
   {
-    icon: 'sparkles-outline',
+    image: require('../../assets/images/onboarding/ai-guidance.png'),
+    kicker: '03 · ACT',
     en: { title: 'Help, anytime', body: 'Ask Ecofy AI in your language, track your progress, and earn rewards.' },
     sw: { title: 'Msaada, wakati wowote', body: 'Uliza Ecofy AI kwa lugha yako, fuatilia maendeleo, na pata zawadi.' },
   },
@@ -71,10 +76,18 @@ export default function IntroScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.skipRow}>
-        <TouchableOpacity onPress={() => void finish('/(auth)/register')} hitSlop={8}>
+      <View style={styles.topBar}>
+        <View style={styles.brandRow}>
+          <Image
+            source={require('../../assets/images/android-icon-foreground.png')}
+            style={styles.brandMark}
+            contentFit="contain"
+          />
+          <Text style={styles.brand}>ECOFY</Text>
+        </View>
+        <Pressable onPress={() => void finish('/(auth)/register')} hitSlop={8}>
           <Text style={styles.skip}>{sw ? 'Ruka' : 'Skip'}</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -85,33 +98,53 @@ export default function IntroScreen() {
         onMomentumScrollEnd={onScroll}
         style={styles.flex}
       >
-        {SLIDES.map((slide) => {
+        {SLIDES.map((slide, slideIndex) => {
           const copy = sw ? slide.sw : slide.en;
           return (
-            <View key={slide.icon} style={[styles.slide, { width }]}>
-              <View style={styles.iconCircle}>
-                <Ionicons name={slide.icon} size={64} color={theme.colors.primary} />
+            <View key={slide.kicker} style={[styles.slide, { width }]}>
+              <View style={styles.imagePanel}>
+                <Image
+                  source={slide.image}
+                  style={styles.slideImage}
+                  contentFit="cover"
+                  transition={180}
+                />
+                <View style={styles.imageScrim} />
+                <View style={styles.kickerPill}>
+                  <Text style={styles.kicker}>{slide.kicker}</Text>
+                </View>
               </View>
-              <Text style={styles.title}>{copy.title}</Text>
-              <Text style={styles.body}>{copy.body}</Text>
+              <Animated.View
+                entering={FadeInDown.duration(260).delay(slideIndex * 40)}
+                style={styles.copyBlock}
+              >
+                <Text style={styles.title}>{copy.title}</Text>
+                <Text style={styles.body}>{copy.body}</Text>
+              </Animated.View>
             </View>
           );
         })}
       </ScrollView>
 
-      <View style={styles.dots}>
-        {SLIDES.map((_, i) => (
-          <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
-        ))}
-      </View>
-
       <View style={styles.footer}>
-        <Button label={last ? (sw ? 'Anza' : 'Get started') : sw ? 'Endelea' : 'Next'} onPress={onNext} />
-        <TouchableOpacity onPress={() => void finish('/(auth)/login')} hitSlop={8} style={styles.signInRow}>
+        <View style={styles.progressRow}>
+          <View style={styles.dots}>
+            {SLIDES.map((_, i) => (
+              <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+            ))}
+          </View>
+          <Text style={styles.count}>{index + 1} / {SLIDES.length}</Text>
+        </View>
+        <Button
+          label={last ? (sw ? 'Anza' : 'Get started') : sw ? 'Endelea' : 'Next'}
+          onPress={onNext}
+          style={styles.nextButton}
+        />
+        <Pressable onPress={() => void finish('/(auth)/login')} hitSlop={8} style={styles.signInRow}>
           <Text style={styles.signInText}>
             {sw ? 'Una akaunti tayari? Ingia' : 'Already have an account? Sign in'}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -120,27 +153,73 @@ export default function IntroScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: theme.colors.background },
   flex: { flex: 1 },
-  skipRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm },
-  skip: { fontSize: 15, fontWeight: '600', color: theme.colors.textMuted },
-
-  slide: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: theme.spacing.xl, gap: theme.spacing.lg },
-  iconCircle: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: theme.colors.primary + '14',
+  topBar: {
+    minHeight: 50,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.md,
   },
-  title: { fontSize: 26, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
-  body: { fontSize: 16, color: theme.colors.textMuted, textAlign: 'center', lineHeight: 24, paddingHorizontal: theme.spacing.md },
-
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: theme.spacing.lg },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.border },
-  dotActive: { backgroundColor: theme.colors.primary, width: 22 },
-
-  footer: { paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.lg, gap: theme.spacing.md },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  brandMark: { width: 27, height: 27 },
+  brand: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: theme.colors.primaryDark,
+    letterSpacing: 2,
+  },
+  skip: { fontSize: 13, fontWeight: '700', color: theme.colors.textMuted },
+  slide: {
+    flex: 1,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    gap: 18,
+  },
+  imagePanel: {
+    flex: 1,
+    minHeight: 280,
+    maxHeight: 470,
+    borderRadius: 26,
+    overflow: 'hidden',
+    borderCurve: 'continuous',
+    backgroundColor: theme.colors.surfaceMuted,
+  },
+  slideImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8, 35, 20, 0.07)',
+  },
+  kickerPill: {
+    position: 'absolute',
+    left: 14,
+    top: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.90)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  kicker: {
+    color: theme.colors.primaryDark,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  copyBlock: {
+    gap: 7,
+    paddingHorizontal: 2,
+  },
+  title: { fontSize: 25, lineHeight: 30, fontWeight: '900', color: theme.colors.text, letterSpacing: -0.4 },
+  body: { maxWidth: 360, fontSize: 14, color: theme.colors.textMuted, lineHeight: 20 },
+  footer: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 4, gap: 10 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dots: { flexDirection: 'row', gap: 6 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.border },
+  dotActive: { backgroundColor: theme.colors.primary, width: 20 },
+  count: { color: theme.colors.textMuted, fontSize: 10, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  nextButton: { minHeight: 46, borderRadius: 15, borderCurve: 'continuous' },
   signInRow: { alignItems: 'center', paddingVertical: 4 },
-  signInText: { fontSize: 14, fontWeight: '600', color: theme.colors.primary },
+  signInText: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
 });

@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { focusManager, onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { I18nProvider } from '@/lib/i18n';
+
 const mockRouter = {
   push: jest.fn(),
   back: jest.fn(),
@@ -251,9 +253,11 @@ function renderWorkspace(onClose = jest.fn()) {
           insets: { top: 0, left: 0, right: 0, bottom: 0 },
         }}
       >
-        <QueryClientProvider client={client}>
-          <FarmWorkspaceScreen farmId="farm-1" onClose={onClose} />
-        </QueryClientProvider>
+        <I18nProvider>
+          <QueryClientProvider client={client}>
+            <FarmWorkspaceScreen farmId="farm-1" onClose={onClose} />
+          </QueryClientProvider>
+        </I18nProvider>
       </SafeAreaProvider>,
     ),
   };
@@ -274,8 +278,8 @@ describe('FarmWorkspaceScreen', () => {
     await waitFor(() => expect(mockMobileApi.listFarms).toHaveBeenCalledTimes(1));
     expect(client.getQueryState(['farm-workspace-online-core', 'farm-1'])?.status).toBe('success');
 
-    expect(await screen.findByText('Farm details')).toBeTruthy();
-    expect(await screen.findByText('Planted')).toBeTruthy();
+    expect(await screen.findByText('CROP & SEASON')).toBeTruthy();
+    expect(await screen.findByText('Mar 1, 2026')).toBeTruthy();
     expect(await screen.findByText('Farm map')).toBeTruthy();
 
     fireEvent.press(screen.getByTestId('farm-workspace-tab-notes'));
@@ -322,22 +326,17 @@ describe('FarmWorkspaceScreen', () => {
 
     expect(
       await screen.findByText(
-        'No active journey yet. Start a crop journey to unlock live field monitoring.',
+        'Select a crop and planting details for this farm so we can build the right tasks and monitoring timeline.',
       ),
     ).toBeTruthy();
-    expect(
-      await screen.findByText(
-        'Live monitoring is unavailable right now. The dashboard is showing what the online farm API returned.',
-      ),
-    ).toBeTruthy();
-    expect(await screen.findByText('Farm details')).toBeTruthy();
+    expect(await screen.findByText('CROP & SEASON')).toBeTruthy();
     expect(await screen.findByText('Farm map')).toBeTruthy();
   });
 
   it('refreshes the risk monitoring workflow from the risks controls', async () => {
     renderWorkspace();
 
-    await screen.findByText('Farm details');
+    await screen.findByText('CROP & SEASON');
     fireEvent.press(screen.getByTestId('farm-workspace-tab-risks'));
     await screen.findByText('YOUR FIELDS (1)');
     fireEvent.press(screen.getByTestId('farm-risks-refresh'));
@@ -348,7 +347,7 @@ describe('FarmWorkspaceScreen', () => {
   it('saves farm details through the backend update route', async () => {
     renderWorkspace();
 
-    await screen.findByText('Farm details');
+    await screen.findByText('CROP & SEASON');
     fireEvent.press(screen.getByTestId('farm-edit-name'));
     fireEvent.changeText(screen.getByDisplayValue('Alpha Farm'), 'Home Farm');
     fireEvent.press(screen.getByTestId('farm-field-editor-save'));
@@ -361,9 +360,9 @@ describe('FarmWorkspaceScreen', () => {
   it('saves the planting date through the journey backend route', async () => {
     renderWorkspace();
 
-    await screen.findByText('Farm details');
-    fireEvent.press(screen.getByTestId('farm-edit-planting_date'));
-    fireEvent.changeText(screen.getByDisplayValue('2026-03-01'), '2026-03-08');
+    await screen.findByText('CROP & SEASON');
+    fireEvent.press(screen.getByTestId('farm-detail-planting'));
+    fireEvent.press(screen.getByTestId('calendar-day-2026-03-08'));
     fireEvent.press(screen.getByTestId('farm-field-editor-save'));
 
     await waitFor(() =>
@@ -428,8 +427,8 @@ describe('FarmWorkspaceScreen', () => {
 
     renderWorkspace();
 
-    expect(await screen.findByText('Farm details')).toBeTruthy();
-    expect(await screen.findByText('Planted')).toBeTruthy();
-    expect(await screen.findByText('Vegetative Growth')).toBeTruthy();
+    expect(await screen.findByText('CROP & SEASON')).toBeTruthy();
+    expect(await screen.findByText('Mar 1, 2026')).toBeTruthy();
+    expect((await screen.findAllByText('Vegetative Growth')).length).toBeGreaterThan(0);
   });
 });

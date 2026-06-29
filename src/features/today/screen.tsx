@@ -1,15 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image, type ImageSource } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  Image,
-  type ImageSourcePropType,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AchievementModal, SmartNudges } from '@/components/game';
 import { Card } from '@/components/core/card';
@@ -46,7 +46,7 @@ const WEATHER_IMAGES = {
   rain: require('../../../assets/images/weather/rain.png'),
   storm: require('../../../assets/images/weather/storm.png'),
   fog: require('../../../assets/images/weather/fog.png'),
-} satisfies Record<string, ImageSourcePropType>;
+} satisfies Record<string, ImageSource>;
 
 function greetingKey() {
   const h = new Date().getHours();
@@ -60,7 +60,7 @@ function isNightTime() {
   return hour < 6 || hour >= 18;
 }
 
-function weatherImage(conditions?: string, night = false): ImageSourcePropType {
+function weatherImage(conditions?: string, night = false): ImageSource {
   const value = conditions?.toLowerCase() ?? '';
   if (value.includes('thunder')) return WEATHER_IMAGES.storm;
   if (value.includes('rain') || value.includes('drizzle') || value.includes('snow')) {
@@ -111,7 +111,7 @@ function WeatherWeekWidget({
             <Image
               source={weatherImage(current?.conditions, nightNow)}
               style={styles.weatherTitleImage}
-              resizeMode="contain"
+              contentFit="contain"
             />
           </View>
           <View style={{ flex: 1 }}>
@@ -198,7 +198,7 @@ function WeatherWeekWidget({
                   <Image
                     source={weatherImage(iconConditions, index === 0 && nightNow)}
                     style={styles.forecastWeatherImage}
-                    resizeMode="contain"
+                    contentFit="contain"
                   />
                   <Text style={styles.forecastTemperature}>
                     {roundedTemperature(day.temperature_high)}
@@ -428,17 +428,19 @@ export function TodayScreen() {
       </View>
 
       {activeFarm || isLoading ? (
-        <WeatherWeekWidget
-          farmName={activeFarm?.name ?? ''}
-          weather={weatherQuery.data}
-          loading={isLoading || weatherQuery.isLoading}
-          error={weatherQuery.isError}
-          onRetry={() => void weatherQuery.refetch()}
-        />
+        <Animated.View entering={FadeInDown.duration(280)}>
+          <WeatherWeekWidget
+            farmName={activeFarm?.name ?? ''}
+            weather={weatherQuery.data}
+            loading={isLoading || weatherQuery.isLoading}
+            error={weatherQuery.isError}
+            onRetry={() => void weatherQuery.refetch()}
+          />
+        </Animated.View>
       ) : null}
 
       {/* ── Quick actions ── */}
-      <View style={styles.quickSection}>
+      <Animated.View entering={FadeInDown.duration(280).delay(50)} style={styles.quickSection}>
         <Text style={styles.quickSectionTitle}>{t('today.quickActions')}</Text>
         <View style={styles.quickGrid}>
           {QUICK_ACTIONS.map((a) => (
@@ -455,15 +457,16 @@ export function TodayScreen() {
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+      </Animated.View>
 
       {/* ── Hero: do this today ── */}
-      <Section>
-        <Text style={styles.sectionTitle}>{t('today.doThisToday')}</Text>
-        {isLoading ? (
-          <SkeletonCard />
-        ) : journey && plantingDateMissing ? (
-          <Card>
+      <Animated.View entering={FadeInDown.duration(280).delay(100)}>
+        <Section>
+          <Text style={styles.sectionTitle}>{t('today.doThisToday')}</Text>
+          {isLoading ? (
+            <SkeletonCard />
+          ) : journey && plantingDateMissing ? (
+            <Card>
             <Text style={styles.heroTitle}>{t('today.setPlantingTitle')}</Text>
             <Text style={styles.heroSub}>
               {t('today.setPlantingBody', { farm: activeFarm?.name ?? 'This farm' })}
@@ -579,8 +582,9 @@ export function TodayScreen() {
               <Text style={styles.ctaText}>{t('today.getStarted')}</Text>
             </TouchableOpacity>
           </Card>
-        )}
-      </Section>
+          )}
+        </Section>
+      </Animated.View>
 
       {/* ── Smart nudges (tick-engine + advisories, all journeys) ── */}
       <Section>
@@ -617,8 +621,9 @@ const styles = StyleSheet.create({
   weatherCard: {
     padding: 14,
     gap: 12,
-    shadowOpacity: 0,
-    elevation: 0,
+    borderColor: '#dce7dc',
+    boxShadow: '0 8px 24px rgba(15, 61, 36, 0.07)',
+    borderCurve: 'continuous',
   },
   weatherHeader: {
     flexDirection: 'row',
@@ -672,6 +677,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 5,
     paddingVertical: 10,
+    borderCurve: 'continuous',
   },
   forecastDay: { flex: 1, minWidth: 0, alignItems: 'center', gap: 3 },
   forecastDayLabel: { fontSize: 9, fontWeight: '700', color: theme.colors.textMuted },
@@ -784,6 +790,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.primary + '20',
     alignItems: 'center',
     justifyContent: 'center',
+    borderCurve: 'continuous',
   },
   quickLabel: { fontSize: 10, fontWeight: '700', color: theme.colors.text },
 });

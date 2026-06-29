@@ -1,0 +1,187 @@
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL EXPO_PUBLIC_EAS_PROJECT_ID EXPO_PUBLIC_ENVIRONMENT EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN EXPO_PUBLIC_MAPBOX_STYLE_URL
+Starting project at D:\Projects\3d_projects\Ecofy\Ecofy Mobile App
+Using src/app as the root directory for Expo Router.
+React Compiler enabled
+Metro is running in CI mode, reloads are disabled. Remove CI=true to enable watch mode.
+Starting Metro Bundler
+
+Waiting on http://localhost:8082
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓░░░░░░░░░░░░ 25.0% (14/92)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓░░░░░░░░░░░░░ 20.5% (106/234)
+Web node_modules\expo-router\entry.js ▓▓▓▓░░░░░░░░░░░░ 25.0% (113/270)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓░░░░░░░░░░░░ 28.7% (387/723)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 34.1% (279/495)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓░░░░░░░░░░░ 36.7% ( 723/1358)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 52.7% (467/643)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓▓▓▓░░░░░░░░ 55.5% (1186/1592)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 52.7% (515/804)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 77.0% (1485/1692)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓░░░░░░░░ 53.3% ( 767/1114)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 86.6% (1685/1811)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 75.0% (1452/1677)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 94.6% (1909/1963)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 96.6% (1924/1958)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.6% (2070/2074)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 96.6% (1924/1958)
+λ node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (2079/2079)
+λ Bundling failed 31098ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (2079 modules)
+
+Metro error: Unable to resolve module ./wa-sqlite/wa-sqlite.wasm from D:\Projects\3d_projects\Ecofy\Ecofy Mobile App\node_modules\expo-sqlite\web\worker.ts: 
+
+None of these files exist:
+  * node_modules\expo-sqlite\web\wa-sqlite\wa-sqlite.wasm(.web.ts|.ts|.web.tsx|.tsx|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.mjs|.mjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * node_modules\expo-sqlite\web\wa-sqlite\wa-sqlite.wasm
+[0m [90m 20 |[39m [36mimport[39m [33mWaSQLiteFactory[39m [36mfrom[39m [32m'./wa-sqlite/wa-sqlite'[39m[33m;[39m
+ [90m 21 |[39m [90m// @ts-expect-error wasm module is not typed[39m
+[31m[1m>[22m[39m[90m 22 |[39m [36mimport[39m wasmModule [36mfrom[39m [32m'./wa-sqlite/wa-sqlite.wasm'[39m[33m;[39m
+ [90m    |[39m                         [31m[1m^[22m[39m
+ [90m 23 |[39m [36mimport[39m {
+ [90m 24 |[39m   type [33mSQLiteWorkerMessage[39m[33m,[39m
+ [90m 25 |[39m   type [33mSQLiteWorkerMessageType[39m[33m,[39m[0m
+
+Import stack:
+
+ node_modules\expo-sqlite\web\worker.ts
+ | import "./wa-sqlite/wa-sqlite.wasm"
+
+ node_modules\expo-sqlite\web\SQLiteModule.ts
+ | import "./worker"
+
+ node_modules\expo-sqlite\build\ExpoSQLite.web.js
+ | import "../web/SQLiteModule"
+
+ node_modules\expo-sqlite\build\hooks.js
+ | import "./ExpoSQLite"
+
+ node_modules\expo-sqlite\build\index.js
+ | import "./hooks"
+
+ src\lib\db\database.ts
+ | import "expo-sqlite"
+
+ src\lib\db\repositories.ts
+ | import "@/lib/db/database"
+
+ src\lib\i18n\index.tsx
+ | import "@/lib/db/repositories"
+
+ src\app\(auth)\register.tsx
+ | import "@/lib/i18n"
+
+ src\app (require.context)
+
+
+
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 96.6% (1924/1958)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.5% (2034/2039)
+Web node_modules\expo-router\_error.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 63.5% (47/59)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.6% (2035/2039)
+Web node_modules\expo-router\_error.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 63.5% (47/59)
+Web Bundled 8707ms node_modules\expo-router\_error.js (133 modules)
+Web Bundled 40343ms node_modules\expo-router\entry.js (2056 modules)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1090ms node_modules\expo-router\entry.js (1 module)
+λ Bundling failed 1489ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (2079 modules)
+
+Metro error: Unable to resolve module ./wa-sqlite/wa-sqlite.wasm from D:\Projects\3d_projects\Ecofy\Ecofy Mobile App\node_modules\expo-sqlite\web\worker.ts: 
+
+None of these files exist:
+  * node_modules\expo-sqlite\web\wa-sqlite\wa-sqlite.wasm(.web.ts|.ts|.web.tsx|.tsx|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.mjs|.mjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * node_modules\expo-sqlite\web\wa-sqlite\wa-sqlite.wasm
+[0m [90m 20 |[39m [36mimport[39m [33mWaSQLiteFactory[39m [36mfrom[39m [32m'./wa-sqlite/wa-sqlite'[39m[33m;[39m
+ [90m 21 |[39m [90m// @ts-expect-error wasm module is not typed[39m
+[31m[1m>[22m[39m[90m 22 |[39m [36mimport[39m wasmModule [36mfrom[39m [32m'./wa-sqlite/wa-sqlite.wasm'[39m[33m;[39m
+ [90m    |[39m                         [31m[1m^[22m[39m
+ [90m 23 |[39m [36mimport[39m {
+ [90m 24 |[39m   type [33mSQLiteWorkerMessage[39m[33m,[39m
+ [90m 25 |[39m   type [33mSQLiteWorkerMessageType[39m[33m,[39m[0m
+
+Import stack:
+
+ node_modules\expo-sqlite\web\worker.ts
+ | import "./wa-sqlite/wa-sqlite.wasm"
+
+ node_modules\expo-sqlite\web\SQLiteModule.ts
+ | import "./worker"
+
+ node_modules\expo-sqlite\build\ExpoSQLite.web.js
+ | import "../web/SQLiteModule"
+
+ node_modules\expo-sqlite\build\hooks.js
+ | import "./ExpoSQLite"
+
+ node_modules\expo-sqlite\build\index.js
+ | import "./hooks"
+
+ src\lib\db\database.ts
+ | import "expo-sqlite"
+
+ src\lib\db\repositories.ts
+ | import "@/lib/db/database"
+
+ src\lib\i18n\index.tsx
+ | import "@/lib/db/repositories"
+
+ src\app\(auth)\register.tsx
+ | import "@/lib/i18n"
+
+ src\app (require.context)
+
+
+
+Web Bundled 13ms node_modules\expo-router\_error.js (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 958ms node_modules\expo-router\entry.js (1 module)
+λ Bundling failed 1324ms node_modules\expo\node_modules\@expo\cli\node_modules\@expo\router-server\node\render.js (2079 modules)
+
+Metro error: Unable to resolve module ./wa-sqlite/wa-sqlite.wasm from D:\Projects\3d_projects\Ecofy\Ecofy Mobile App\node_modules\expo-sqlite\web\worker.ts: 
+
+None of these files exist:
+  * node_modules\expo-sqlite\web\wa-sqlite\wa-sqlite.wasm(.web.ts|.ts|.web.tsx|.tsx|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.mjs|.mjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * node_modules\expo-sqlite\web\wa-sqlite\wa-sqlite.wasm
+[0m [90m 20 |[39m [36mimport[39m [33mWaSQLiteFactory[39m [36mfrom[39m [32m'./wa-sqlite/wa-sqlite'[39m[33m;[39m
+ [90m 21 |[39m [90m// @ts-expect-error wasm module is not typed[39m
+[31m[1m>[22m[39m[90m 22 |[39m [36mimport[39m wasmModule [36mfrom[39m [32m'./wa-sqlite/wa-sqlite.wasm'[39m[33m;[39m
+ [90m    |[39m                         [31m[1m^[22m[39m
+ [90m 23 |[39m [36mimport[39m {
+ [90m 24 |[39m   type [33mSQLiteWorkerMessage[39m[33m,[39m
+ [90m 25 |[39m   type [33mSQLiteWorkerMessageType[39m[33m,[39m[0m
+
+Import stack:
+
+ node_modules\expo-sqlite\web\worker.ts
+ | import "./wa-sqlite/wa-sqlite.wasm"
+
+ node_modules\expo-sqlite\web\SQLiteModule.ts
+ | import "./worker"
+
+ node_modules\expo-sqlite\build\ExpoSQLite.web.js
+ | import "../web/SQLiteModule"
+
+ node_modules\expo-sqlite\build\hooks.js
+ | import "./ExpoSQLite"
+
+ node_modules\expo-sqlite\build\index.js
+ | import "./hooks"
+
+ src\lib\db\database.ts
+ | import "expo-sqlite"
+
+ src\lib\db\repositories.ts
+ | import "@/lib/db/database"
+
+ src\lib\i18n\index.tsx
+ | import "@/lib/db/repositories"
+
+ src\app\(auth)\register.tsx
+ | import "@/lib/i18n"
+
+ src\app (require.context)
+
+
+
+Web Bundled 17ms node_modules\expo-router\_error.js (1 module)

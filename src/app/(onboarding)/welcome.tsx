@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { Button } from '@/components/core/button';
 import { Screen } from '@/components/layout/screen';
@@ -34,36 +36,49 @@ export default function WelcomeScreen() {
   return (
     <Screen edges={['top', 'bottom']} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
+        <Image
+          source={require('../../../assets/images/onboarding/welcome-farm.png')}
+          style={styles.heroImage}
+          contentFit="cover"
+          transition={180}
+        />
+        <View style={styles.heroShade} />
         <View style={styles.logoBadge}>
-          <Ionicons name="leaf" size={30} color="#fff" />
+          <Image
+            source={require('../../../assets/images/android-icon-foreground.png')}
+            style={styles.logo}
+            contentFit="contain"
+          />
+          <Text style={styles.brand}>ECOFY</Text>
         </View>
-        <Text style={styles.title}>{sw ? 'Karibu Ecofy' : 'Welcome to Ecofy'}</Text>
-        <Text style={styles.subtitle}>
-          {sw
-            ? 'Mwongozo wako wa kilimo — hatua kwa hatua, msimu mzima.'
-            : 'Your farming guide — step by step, all season long.'}
-        </Text>
+        <View style={styles.heroCopy}>
+          <Text style={styles.title}>{sw ? 'Karibu Ecofy' : 'Welcome to Ecofy'}</Text>
+          <Text style={styles.subtitle}>
+            {sw
+              ? 'Mwongozo wako wa kilimo — hatua kwa hatua, msimu mzima.'
+              : 'Your farming guide — step by step, all season long.'}
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.langBlock}>
+      <Animated.View entering={FadeInDown.duration(280)} style={styles.langBlock}>
         <Text style={styles.langLabel}>Chagua lugha · Choose your language</Text>
         <View style={styles.langRow}>
           {LANGUAGES.map((lang) => {
             const active = selected === lang.code;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={lang.code}
                 style={[styles.langChip, active && styles.langChipActive]}
                 onPress={() => setSelected(lang.code)}
-                activeOpacity={0.85}
               >
                 <Text style={[styles.langNative, active && styles.langTextActive]}>{lang.native}</Text>
                 {active && <Ionicons name="checkmark-circle" size={18} color={theme.colors.primary} />}
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </View>
-      </View>
+      </Animated.View>
 
       <View style={styles.props}>
         {VALUE_PROPS.map((p) => (
@@ -76,47 +91,96 @@ export default function WelcomeScreen() {
         ))}
       </View>
 
-      <View style={{ flex: 1 }} />
-      <Text style={styles.trustLine}>
-        {sw ? 'Bure kuanza · Inafanya kazi bila mtandao' : 'Free to start · Works offline'}
-      </Text>
-      <Button label={sw ? 'Anza' : 'Get started'} onPress={onContinue} />
+      <View style={styles.footer}>
+        <Text style={styles.trustLine}>
+          {sw ? 'Bure kuanza · Inafanya kazi bila mtandao' : 'Free to start · Works offline'}
+        </Text>
+        <Button
+          label={sw ? 'Anza' : 'Get started'}
+          onPress={onContinue}
+          style={styles.continueButton}
+        />
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { gap: theme.spacing.xl, flexGrow: 1 },
-  hero: { alignItems: 'center', gap: 10, marginTop: theme.spacing.xl },
-  logoBadge: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  content: { gap: 16, flexGrow: 1, paddingTop: 10 },
+  hero: {
+    height: 250,
+    borderRadius: 26,
+    overflow: 'hidden',
+    borderCurve: 'continuous',
+    backgroundColor: theme.colors.primaryDark,
   },
-  title: { fontSize: 28, fontWeight: '800', color: theme.colors.text, textAlign: 'center' },
-  subtitle: { fontSize: 15, color: theme.colors.textMuted, textAlign: 'center', lineHeight: 22, paddingHorizontal: 12 },
+  heroImage: { width: '100%', height: '100%' },
+  heroShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(5, 29, 16, 0.27)',
+  },
+  logoBadge: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.91)',
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  logo: { width: 22, height: 22 },
+  brand: {
+    color: theme.colors.primaryDark,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.6,
+  },
+  heroCopy: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 16,
+    gap: 4,
+  },
+  title: { fontSize: 25, lineHeight: 29, fontWeight: '900', color: '#ffffff' },
+  subtitle: { maxWidth: 320, fontSize: 13, color: 'rgba(255,255,255,0.88)', lineHeight: 18 },
 
-  langBlock: { gap: 10 },
-  langLabel: { fontSize: 14, fontWeight: '700', color: theme.colors.text },
-  langRow: { flexDirection: 'row', gap: theme.spacing.md },
+  langBlock: { gap: 8 },
+  langLabel: { fontSize: 11, fontWeight: '800', color: theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.7 },
+  langRow: { flexDirection: 'row', gap: 8 },
   langChip: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: theme.colors.surface, borderRadius: theme.radius.md,
-    borderWidth: 1.5, borderColor: theme.colors.border,
-    paddingHorizontal: 16, paddingVertical: 16,
+    backgroundColor: theme.colors.surface, borderRadius: 14,
+    borderCurve: 'continuous', borderWidth: 1, borderColor: theme.colors.border,
+    paddingHorizontal: 13, paddingVertical: 11,
   },
   langChipActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.surfaceMuted },
-  langNative: { fontSize: 16, fontWeight: '700', color: theme.colors.textMuted },
+  langNative: { fontSize: 14, fontWeight: '800', color: theme.colors.textMuted },
   langTextActive: { color: theme.colors.primary },
 
-  props: { gap: theme.spacing.md },
-  propRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  props: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  propRow: {
+    width: '48.5%',
+    minHeight: 76,
+    gap: 8,
+    padding: 10,
+    borderRadius: 15,
+    borderCurve: 'continuous',
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
   propIcon: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 29, height: 29, borderRadius: 10,
     backgroundColor: theme.colors.primary + '14',
     alignItems: 'center', justifyContent: 'center',
   },
-  propText: { flex: 1, fontSize: 14, color: theme.colors.text, lineHeight: 20 },
+  propText: { fontSize: 11, color: theme.colors.text, lineHeight: 15, fontWeight: '600' },
 
-  trustLine: { fontSize: 13, color: theme.colors.textMuted, textAlign: 'center', marginBottom: theme.spacing.sm },
+  footer: { gap: 8, paddingTop: 2 },
+  trustLine: { fontSize: 11, color: theme.colors.textMuted, textAlign: 'center' },
+  continueButton: { minHeight: 46, borderRadius: 15, borderCurve: 'continuous' },
 });

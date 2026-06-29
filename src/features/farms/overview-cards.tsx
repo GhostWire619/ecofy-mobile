@@ -446,6 +446,10 @@ export function InlineCalendar({
               style={[cal.cell, isSelected && cal.cellSelected]}
               onPress={() => onChange(format(day, 'yyyy-MM-dd'))}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel={format(day, 'MMMM d, yyyy')}
+              accessibilityState={{ selected: isSelected }}
+              testID={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
             >
               <Text style={[cal.cellText, isSelected && cal.cellTextSelected, isToday && !isSelected && cal.cellTextToday]}>
                 {day.getDate()}

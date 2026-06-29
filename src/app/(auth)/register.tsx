@@ -1,18 +1,19 @@
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppleSignInButton } from '@/components/auth/apple-sign-in-button';
+import { AuthDivider, AuthShell } from '@/components/auth/auth-shell';
 import { Button } from '@/components/core/button';
-import { Card } from '@/components/core/card';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { TextField } from '@/components/forms/text-field';
-import { Screen } from '@/components/layout/screen';
 import { useAuth } from '@/lib/auth/provider';
 import { legalUrls } from '@/lib/constants/env';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
+
+const AUTH_HERO = require('../../../assets/images/auth/farm-auth-hero.png');
 
 export default function RegisterScreen() {
   const { t } = useI18n();
@@ -74,40 +75,56 @@ export default function RegisterScreen() {
   }
 
   return (
-    <Screen edges={['top', 'bottom']}>
-      <Card>
-        <Text style={styles.title}>{t('auth.registerTitle')}</Text>
-        <Text style={styles.copy}>{t('auth.registerSubtitle')}</Text>
-      </Card>
-      <Card>
+    <AuthShell
+      compact
+      image={AUTH_HERO}
+      title={t('auth.registerTitle')}
+      subtitle={t('auth.registerSubtitle')}
+    >
+      <View style={styles.form}>
         <TextField
           label={t('auth.fullName')}
+          placeholder="Your full name"
           value={form.fullName}
           onChangeText={(value) => setForm((current) => ({ ...current, fullName: value }))}
+          autoComplete="name"
+          density="compact"
         />
         <TextField
           label={t('auth.email')}
+          placeholder="name@example.com"
           value={form.email}
           onChangeText={(value) => setForm((current) => ({ ...current, email: value }))}
           autoCapitalize="none"
+          autoComplete="email"
+          keyboardType="email-address"
+          density="compact"
         />
         <TextField
           label={t('auth.password')}
+          placeholder="At least 8 characters"
           value={form.password}
           onChangeText={(value) => setForm((current) => ({ ...current, password: value }))}
+          autoComplete="new-password"
           secureTextEntry
+          density="compact"
         />
         <TextField
           label={t('auth.phoneNumber')}
+          placeholder="+255"
           value={form.phoneNumber}
           onChangeText={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
+          autoComplete="tel"
+          keyboardType="phone-pad"
+          density="compact"
         />
         <TextField
           label={t('auth.countryRegion')}
           value={form.location}
           onChangeText={(value) => setForm((current) => ({ ...current, location: value }))}
+          density="compact"
         />
-        {error ? <Text style={styles.error}>{t(error)}</Text> : null}
+        {error ? <Text selectable style={styles.error}>{t(error)}</Text> : null}
         <Text style={styles.consent}>
           {t('auth.consentPrefix')}
           <Text style={styles.link} onPress={() => void WebBrowser.openBrowserAsync(legalUrls.terms)}>
@@ -119,7 +136,17 @@ export default function RegisterScreen() {
           </Text>
           {t('auth.consentSuffix')}
         </Text>
-        <Button label={loading ? t('auth.creatingAccount') : t('auth.createAccount')} disabled={loading} onPress={() => void submit()} />
+        <Button
+          label={loading ? t('auth.creatingAccount') : t('auth.createAccount')}
+          disabled={loading}
+          onPress={() => void submit()}
+          style={styles.primaryButton}
+        />
+      </View>
+
+      <AuthDivider />
+
+      <View style={styles.social}>
         <GoogleSignInButton
           label={t('auth.signUpWithGoogle')}
           disabled={loading}
@@ -131,33 +158,58 @@ export default function RegisterScreen() {
           onToken={(token, fullName) => void onAppleToken(token, fullName)}
           onError={(message) => setError(message)}
         />
-        <Button label={t('auth.backToSignIn')} variant="ghost" disabled={loading} onPress={() => router.back()} />
-      </Card>
-    </Screen>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>{t('auth.hasAccount')}</Text>
+        <Pressable disabled={loading} hitSlop={8} onPress={() => router.back()}>
+          <Text style={styles.footerLink}>{t('auth.signIn')}</Text>
+        </Pressable>
+      </View>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: theme.colors.text,
+  form: {
+    gap: 9,
   },
-  copy: {
-    color: theme.colors.textMuted,
-    lineHeight: 20,
+  primaryButton: {
+    minHeight: 44,
+    borderRadius: 14,
+    borderCurve: 'continuous',
   },
   error: {
     color: theme.colors.danger,
+    fontSize: 12,
+    lineHeight: 17,
   },
   consent: {
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 10.5,
+    lineHeight: 15,
     color: theme.colors.textMuted,
-    textAlign: 'center',
   },
   link: {
     color: theme.colors.primary,
     fontWeight: '700',
+  },
+  social: {
+    gap: 9,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    paddingBottom: 2,
+  },
+  footerText: {
+    color: theme.colors.textMuted,
+    fontSize: 13,
+  },
+  footerLink: {
+    color: theme.colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

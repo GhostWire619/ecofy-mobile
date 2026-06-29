@@ -58,8 +58,8 @@ export function AppleSignInButton({
     <AppleAuthentication.AppleAuthenticationButton
       buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
       buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-      cornerRadius={10}
-      style={{ height: 48, width: '100%', opacity: disabled ? 0.6 : 1 }}
+      cornerRadius={14}
+      style={{ height: 44, width: '100%', opacity: disabled ? 0.6 : 1 }}
       onPress={() => {
         if (!disabled) void signIn();
       }}

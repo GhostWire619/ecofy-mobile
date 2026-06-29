@@ -5,15 +5,24 @@ import { theme } from '@/lib/theme';
 type TextFieldProps = TextInputProps & {
   label: string;
   hint?: string;
+  density?: 'default' | 'compact';
 };
 
-export function TextField({ label, hint, style, ...props }: TextFieldProps) {
+export function TextField({
+  label,
+  hint,
+  density = 'default',
+  style,
+  ...props
+}: TextFieldProps) {
+  const compact = density === 'compact';
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+    <View style={[styles.container, compact && styles.containerCompact]}>
+      <Text style={[styles.label, compact && styles.labelCompact]}>{label}</Text>
       <TextInput
         placeholderTextColor={theme.colors.textMuted}
-        style={[styles.input, style]}
+        style={[styles.input, compact && styles.inputCompact, style]}
         {...props}
       />
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
@@ -24,6 +33,9 @@ export function TextField({ label, hint, style, ...props }: TextFieldProps) {
 const styles = StyleSheet.create({
   container: {
     gap: theme.spacing.sm,
+  },
+  containerCompact: {
+    gap: 5,
   },
   label: {
     color: theme.colors.text,
@@ -40,6 +52,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
     fontSize: 16,
+  },
+  labelCompact: {
+    fontSize: 12,
+  },
+  inputCompact: {
+    minHeight: 46,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
   },
   hint: {
     color: theme.colors.textMuted,

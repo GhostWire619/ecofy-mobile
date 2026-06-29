@@ -1,16 +1,17 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppleSignInButton } from '@/components/auth/apple-sign-in-button';
-import { Button } from '@/components/core/button';
-import { Card } from '@/components/core/card';
+import { AuthDivider, AuthShell } from '@/components/auth/auth-shell';
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
+import { Button } from '@/components/core/button';
 import { TextField } from '@/components/forms/text-field';
-import { Screen } from '@/components/layout/screen';
 import { useAuth } from '@/lib/auth/provider';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
+
+const AUTH_HERO = require('../../../assets/images/auth/farm-auth-hero.png');
 
 export default function LoginScreen() {
   const { t } = useI18n();
@@ -57,31 +58,43 @@ export default function LoginScreen() {
   }
 
   return (
-    <Screen edges={['top', 'bottom']} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('auth.signIn')}</Text>
-        <Text style={styles.copy}>{t('auth.signInSubtitle')}</Text>
-      </View>
-      <Card>
+    <AuthShell
+      image={AUTH_HERO}
+      title={t('auth.signIn')}
+      subtitle={t('auth.signInSubtitle')}
+    >
+      <View style={styles.form}>
         <TextField
           label={t('auth.email')}
+          placeholder="name@example.com"
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
+          autoComplete="email"
           keyboardType="email-address"
+          density="compact"
         />
         <TextField
           label={t('auth.password')}
+          placeholder="••••••••"
           value={password}
           onChangeText={setPassword}
+          autoComplete="current-password"
           secureTextEntry
+          density="compact"
         />
-        {error ? <Text style={styles.error}>{t(error)}</Text> : null}
+        {error ? <Text selectable style={styles.error}>{t(error)}</Text> : null}
         <Button
           label={loading ? t('auth.signingIn') : t('auth.signIn')}
           disabled={loading}
           onPress={() => void submit()}
+          style={styles.primaryButton}
         />
+      </View>
+
+      <AuthDivider />
+
+      <View style={styles.social}>
         <GoogleSignInButton
           label={t('auth.continueWithGoogle')}
           disabled={loading}
@@ -93,35 +106,54 @@ export default function LoginScreen() {
           onToken={(token, fullName) => void onAppleToken(token, fullName)}
           onError={(message) => setError(message)}
         />
-        <Button
-          label={t('auth.createAccount')}
-          variant="ghost"
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>{t('auth.noAccount')}</Text>
+        <Pressable
           disabled={loading}
+          hitSlop={8}
           onPress={() => router.push('/(auth)/register')}
-        />
-      </Card>
-    </Screen>
+        >
+          <Text style={styles.footerLink}>{t('auth.createAccount')}</Text>
+        </Pressable>
+      </View>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
+  form: {
+    gap: 10,
+  },
+  primaryButton: {
+    minHeight: 44,
+    borderRadius: 14,
+    marginTop: 2,
+    borderCurve: 'continuous',
+  },
+  social: {
+    gap: 9,
+  },
+  footer: {
+    flexDirection: 'row',
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+    paddingTop: 2,
   },
-  header: {
-    gap: theme.spacing.sm,
-  },
-  title: {
-    color: theme.colors.text,
-    fontSize: 30,
-    fontWeight: '800',
-  },
-  copy: {
+  footerText: {
     color: theme.colors.textMuted,
-    lineHeight: 22,
+    fontSize: 13,
+  },
+  footerLink: {
+    color: theme.colors.primary,
+    fontSize: 13,
+    fontWeight: '800',
   },
   error: {
     color: theme.colors.danger,
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { focusManager, onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { I18nProvider } from '@/lib/i18n';
+
 const mockRouter = {
   push: jest.fn(),
 };
@@ -128,9 +130,11 @@ describe('HomeScreen', () => {
           insets: { top: 0, left: 0, right: 0, bottom: 0 },
         }}
       >
-        <QueryClientProvider client={client}>
-          <HomeScreen />
-        </QueryClientProvider>
+        <I18nProvider>
+          <QueryClientProvider client={client}>
+            <HomeScreen />
+          </QueryClientProvider>
+        </I18nProvider>
       </SafeAreaProvider>,
     );
 
@@ -179,9 +183,11 @@ describe('HomeScreen', () => {
           insets: { top: 0, left: 0, right: 0, bottom: 0 },
         }}
       >
-        <QueryClientProvider client={client}>
-          <HomeScreen />
-        </QueryClientProvider>
+        <I18nProvider>
+          <QueryClientProvider client={client}>
+            <HomeScreen />
+          </QueryClientProvider>
+        </I18nProvider>
       </SafeAreaProvider>,
     );
 
@@ -200,9 +206,11 @@ describe('HomeScreen', () => {
           insets: { top: 0, left: 0, right: 0, bottom: 0 },
         }}
       >
-        <QueryClientProvider client={client}>
-          <HomeScreen />
-        </QueryClientProvider>
+        <I18nProvider>
+          <QueryClientProvider client={client}>
+            <HomeScreen />
+          </QueryClientProvider>
+        </I18nProvider>
       </SafeAreaProvider>,
     );
 
