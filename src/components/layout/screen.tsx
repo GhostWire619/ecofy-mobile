@@ -2,9 +2,11 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  type StyleProp,
   View,
   type ScrollViewProps,
   type ViewProps,
+  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
@@ -16,6 +18,7 @@ type ScreenProps = ScrollViewProps & {
   /** Pass to enable pull-to-refresh. */
   onRefresh?: () => void;
   refreshing?: boolean;
+  safeAreaStyle?: StyleProp<ViewStyle>;
 };
 
 export function Screen({
@@ -25,10 +28,11 @@ export function Screen({
   scrollEnabled = true,
   onRefresh,
   refreshing = false,
+  safeAreaStyle,
   ...props
 }: ScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea} edges={edges}>
+    <SafeAreaView style={[styles.safeArea, safeAreaStyle]} edges={edges}>
       <ScrollView
         contentContainerStyle={[styles.content, contentContainerStyle]}
         keyboardShouldPersistTaps="handled"

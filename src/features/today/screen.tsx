@@ -48,6 +48,14 @@ const WEATHER_IMAGES = {
   fog: require('../../../assets/images/weather/fog.png'),
 } satisfies Record<string, ImageSource>;
 
+const TODAY_IMAGES = {
+  background: require('../../../assets/images/today/home-field-background.png'),
+  scan: require('../../../assets/images/today/quick-scan.png'),
+  note: require('../../../assets/images/today/quick-note.png'),
+  journey: require('../../../assets/images/today/quick-journey.png'),
+  ai: require('../../../assets/images/today/quick-ai.png'),
+} satisfies Record<string, ImageSource>;
+
 function greetingKey() {
   const h = new Date().getHours();
   if (h < 12) return 'today.goodMorning';
@@ -270,13 +278,14 @@ function topTask(tasks: TaskRecord[]): TaskRecord | null {
 
 const QUICK_ACTIONS: {
   icon: keyof typeof Ionicons.glyphMap;
+  image: ImageSource;
   labelKey: string;
   route: string;
 }[] = [
-  { icon: 'scan-outline', labelKey: 'today.scanCrop', route: '/scan' },
-  { icon: 'document-text-outline', labelKey: 'today.addNote', route: '/(tabs)/logbook' },
-  { icon: 'trophy-outline', labelKey: 'today.myJourney', route: '/(tabs)/journey' },
-  { icon: 'sparkles-outline', labelKey: 'today.askAi', route: '/assistant' },
+  { icon: 'scan-outline', image: TODAY_IMAGES.scan, labelKey: 'today.scanCrop', route: '/scan' },
+  { icon: 'document-text-outline', image: TODAY_IMAGES.note, labelKey: 'today.addNote', route: '/(tabs)/logbook' },
+  { icon: 'trophy-outline', image: TODAY_IMAGES.journey, labelKey: 'today.myJourney', route: '/(tabs)/journey' },
+  { icon: 'sparkles-outline', image: TODAY_IMAGES.ai, labelKey: 'today.askAi', route: '/assistant' },
 ];
 
 export function TodayScreen() {
@@ -415,7 +424,11 @@ export function TodayScreen() {
 
   return (
     <View style={styles.root}>
+    <Image source={TODAY_IMAGES.background} style={styles.backgroundImage} contentFit="cover" />
+    <View style={styles.backgroundVeil} />
     <Screen
+      safeAreaStyle={styles.transparentSurface}
+      style={styles.transparentSurface}
       contentContainerStyle={styles.content}
       onRefresh={refreshToday}
       refreshing={isRefetching || weatherQuery.isRefetching}
@@ -450,8 +463,11 @@ export function TodayScreen() {
               activeOpacity={0.75}
               onPress={() => router.push(a.route as never)}
             >
-              <View style={styles.quickIcon}>
-                <Ionicons name={a.icon} size={18} color={theme.colors.primary} />
+              <View style={styles.quickArtShell}>
+                <Image source={a.image} style={styles.quickArt} contentFit="contain" />
+                <View style={styles.quickMiniBadge}>
+                  <Ionicons name={a.icon} size={10} color={theme.colors.primaryDark} />
+                </View>
               </View>
               <Text style={styles.quickLabel} numberOfLines={1}>{t(a.labelKey)}</Text>
             </TouchableOpacity>
@@ -608,7 +624,21 @@ export function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: {
+    flex: 1,
+    backgroundColor: '#f5f4ec',
+  },
+  transparentSurface: {
+    backgroundColor: 'transparent',
+  },
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.78,
+  },
+  backgroundVeil: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(248, 247, 239, 0.58)',
+  },
   content: {
     gap: 12,
     paddingTop: 6,
@@ -764,7 +794,7 @@ const styles = StyleSheet.create({
   moreLink: { color: theme.colors.primary, fontWeight: '700', fontSize: 13, marginTop: 8, textAlign: 'center' },
   snoozeLink: { color: theme.colors.textMuted, fontWeight: '600', fontSize: 13, marginTop: 8, textAlign: 'center' },
 
-  quickSection: { alignItems: 'center', gap: 7, paddingVertical: 2 },
+  quickSection: { alignItems: 'center', gap: 8, paddingVertical: 2 },
   quickSectionTitle: {
     fontSize: 12,
     fontWeight: '700',
@@ -774,23 +804,43 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 9,
+    gap: 8,
   },
   quickItem: {
-    width: 70,
+    width: 76,
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
-  quickIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor: theme.colors.primary + '14',
+  quickArtShell: {
+    width: 64,
+    height: 58,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 250, 0.86)',
     borderWidth: 1,
-    borderColor: theme.colors.primary + '20',
+    borderColor: 'rgba(21, 87, 56, 0.10)',
     alignItems: 'center',
     justifyContent: 'center',
     borderCurve: 'continuous',
+    overflow: 'visible',
+    boxShadow: '0 10px 22px rgba(18, 67, 42, 0.11)',
   },
-  quickLabel: { fontSize: 10, fontWeight: '700', color: theme.colors.text },
+  quickArt: {
+    width: 58,
+    height: 58,
+    marginTop: -8,
+  },
+  quickMiniBadge: {
+    position: 'absolute',
+    right: 6,
+    bottom: 5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e8f6ec',
+    borderWidth: 1,
+    borderColor: 'rgba(21, 87, 56, 0.12)',
+  },
+  quickLabel: { fontSize: 10, fontWeight: '800', color: theme.colors.text },
 });
