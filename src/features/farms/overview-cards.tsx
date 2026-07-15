@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   addMonths,
   differenceInCalendarDays,
@@ -485,10 +485,10 @@ const cal = StyleSheet.create({
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.88)',
     borderRadius: theme.radius.lg,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: 'rgba(39, 73, 47, 0.10)',
     padding: 16,
     gap: 12,
   },
@@ -519,7 +519,7 @@ const s = StyleSheet.create({
   stageChipText: { fontSize: 12, fontWeight: '700', color: '#1f8f54' },
   heroMeta: { fontSize: 12, color: theme.colors.textMuted },
   progressTrack: {
-    height: 8, borderRadius: 999, backgroundColor: theme.colors.background, overflow: 'hidden',
+    height: 8, borderRadius: 999, backgroundColor: 'rgba(244, 240, 231, 0.72)', overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 999, backgroundColor: theme.colors.primary },
   progressLabel: { fontSize: 12, color: theme.colors.textMuted },
@@ -550,7 +550,7 @@ const s = StyleSheet.create({
   soilGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   soilMetric: {
     flexBasis: '47%', flexGrow: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.76)',
     borderRadius: theme.radius.md, padding: 10,
   },
   soilMetricLabel: { fontSize: 12, color: theme.colors.textMuted },

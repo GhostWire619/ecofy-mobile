@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -86,6 +86,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textMuted,
         tabBarStyle: s.tabBar,
+        sceneStyle: { backgroundColor: theme.colors.background },
         headerStyle: { backgroundColor: theme.colors.background },
         headerShadowVisible: false,
         headerTitleStyle: { color: theme.colors.text, fontWeight: '800', fontSize: 18 },
@@ -105,27 +106,28 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* ── Farms (dashboard) ── */}
+      {/* ── Activity / Notes ── */}
       <Tabs.Screen
-        name="home"
+        name="logbook"
         options={{
-          title: t('tabs.farms'),
+          title: t('tabs.notes'),
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label={t('tabs.farms')} focused={focused} color={color} />
+            <TabLabel label={t('tabs.notes')} focused={focused} color={color} />
           ),
-          tabBarIcon: ({ focused, color }) => <TabIcon name="leaf-outline" focused={focused} color={color} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="document-text-outline" focused={focused} color={color} />,
         }}
       />
 
-      {/* ── Finance (wealth) ── */}
+      {/* ── Ecofy AI ── */}
       <Tabs.Screen
-        name="finance"
+        name="ai"
         options={{
-          title: t('tabs.finance'),
+          title: t('tabs.ai'),
+          headerShown: false,
           tabBarLabel: ({ focused, color }) => (
-            <TabLabel label={t('tabs.finance')} focused={focused} color={color} />
+            <TabLabel label={t('tabs.ai')} focused={focused} color={color} />
           ),
-          tabBarIcon: ({ focused, color }) => <TabIcon name="cash-outline" focused={focused} color={color} />,
+          tabBarIcon: ({ focused, color }) => <TabIcon name="sparkles-outline" focused={focused} color={color} />,
         }}
       />
 
@@ -141,7 +143,7 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* ── More (Notes, Prices, Explore, Scan, Assistant, Settings) ── */}
+      {/* ── More (Farms, Finance, Explore, Scan, Assistant, Settings) ── */}
       <Tabs.Screen
         name="more"
         options={{
@@ -154,10 +156,11 @@ export default function TabsLayout() {
       />
 
       {/* Hidden routes (still accessible via More / quick actions, not in tab bar) */}
-      <Tabs.Screen name="logbook" options={{ href: null, title: t('tabs.notes') }} />
-      <Tabs.Screen name="market"  options={{ href: null, title: t('tabs.prices') }} />
       <Tabs.Screen name="explore" options={{ href: null }} />
-      <Tabs.Screen name="farms"   options={{ href: null }} />
+      <Tabs.Screen name="market"  options={{ href: null, title: t('tabs.prices') }} />
+      <Tabs.Screen name="farms"   options={{ href: null, title: t('more.farms') }} />
+      <Tabs.Screen name="home"    options={{ href: null }} />
+      <Tabs.Screen name="finance" options={{ href: null, title: t('tabs.finance') }} />
     </Tabs>
   );
 }
@@ -167,8 +170,8 @@ const s = StyleSheet.create({
     height: 64,
     paddingBottom: 8,
     paddingTop: 6,
-    backgroundColor: theme.colors.surface + 'f2', // ~95% opaque
-    borderTopColor: theme.colors.border + '80',
+    backgroundColor: theme.colors.surface,
+    borderTopColor: theme.colors.border,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },

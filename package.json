@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@react-native-community/datetimepicker": "8.6.0",
     "@react-native-community/netinfo": "11.5.2",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-navigation/bottom-tabs": "^7.15.5",
@@ -36,6 +37,7 @@
     "expo-apple-authentication": "~55.0.14",
     "expo-auth-session": "~55.0.16",
     "expo-background-task": "~55.0.16",
+    "expo-build-properties": "~55.0.16",
     "expo-constants": "~55.0.14",
     "expo-crypto": "~55.0.14",
     "expo-dev-client": "~55.0.27",
@@ -57,7 +59,6 @@
     "expo-splash-screen": "~55.0.18",
     "expo-sqlite": "~55.0.15",
     "expo-status-bar": "~55.0.5",
-    "expo-symbols": "~55.0.7",
     "expo-system-ui": "~55.0.15",
     "expo-task-manager": "~55.0.14",
     "expo-web-browser": "~55.0.14",

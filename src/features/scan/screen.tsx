@@ -1,13 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { Card } from '@/components/core/card';
 import { Screen, Section } from '@/components/layout/screen';
 import { ApiError } from '@/lib/api/client';
+import { consultsApi, type ExpertConsult } from '@/lib/api/consults';
 import { mobileApi } from '@/lib/api/mobile';
 import { cropCatalog, getCropCatalogItem } from '@/lib/constants/crops';
 import { farmRepository, journeyRepository } from '@/lib/db/repositories';
@@ -85,12 +87,16 @@ function saveErrorMessage(error: unknown): string {
 
 export function ScanScreen() {
   const { t } = useI18n();
+  const params = useLocalSearchParams<{ advisorId?: string; advisorName?: string }>();
+  const preferredAdvisorId = typeof params.advisorId === 'string' ? params.advisorId : undefined;
+  const preferredAdvisorName = typeof params.advisorName === 'string' ? params.advisorName : undefined;
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [mimeType, setMimeType] = useState<string>('image/jpeg');
   const [cropName, setCropName] = useState<string | null>(null);
   const [savedToLog, setSavedToLog] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [expertConsult, setExpertConsult] = useState<ExpertConsult | null>(null);
 
   const { data: journey } = useQuery({
     queryKey: ['scan-active-journey'],
@@ -99,8 +105,7 @@ export function ScanScreen() {
     queryFn: async () => {
       const activeFarmId = await farmRepository.getSelectedFarmId();
       if (activeFarmId) {
-        const forFarm = await journeyRepository.getActiveJourneyForFarm(activeFarmId);
-        if (forFarm) return forFarm;
+        return journeyRepository.getActiveJourneyForFarm(activeFarmId);
       }
       return journeyRepository.getActiveJourney();
     },
@@ -123,6 +128,12 @@ export function ScanScreen() {
         journeyId: journey?.id ?? null,
         plotId: journey?.plot_id ?? null,
       }),
+  });
+
+  const expertReviewMutation = useMutation({
+    mutationFn: (observationId: string) =>
+      consultsApi.createFromObservation(observationId, 'Please review this crop scan and treatment plan.', preferredAdvisorId),
+    onSuccess: setExpertConsult,
   });
 
   const pick = async (mode: 'camera' | 'library') => {
@@ -154,6 +165,8 @@ export function ScanScreen() {
     setImageUri(null);
     setSavedToLog(false);
     setSaveError(null);
+    setExpertConsult(null);
+    expertReviewMutation.reset();
     diagnoseMutation.reset();
   };
 
@@ -287,6 +300,42 @@ export function ScanScreen() {
           )}
 
           {result && <DiagnosisCard result={result} />}
+
+          {result?.detected && result.observation_id ? (
+            <Card>
+              <View style={styles.expertHead}>
+                <View style={styles.expertIcon}>
+                  <Ionicons name="person-circle-outline" size={24} color={theme.colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.expertTitle}>{preferredAdvisorName ? `Review with ${preferredAdvisorName}` : 'Get an agronomist’s review'}</Text>
+                  <Text style={styles.expertCopy}>A verified expert can confirm this scan and review the neutral treatment plan.</Text>
+                </View>
+              </View>
+              {expertConsult ? (
+                <>
+                  <View style={styles.reviewRequested}>
+                    <Ionicons name="checkmark-circle" size={18} color={theme.colors.success} />
+                    <Text style={styles.reviewRequestedText}>
+                      {expertConsult.advisor_name ? `Assigned to ${expertConsult.advisor_name}` : 'Review requested — waiting for an expert'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity style={styles.expertButton} onPress={() => router.push(`/consults/${expertConsult.id}` as never)}>
+                    <Text style={styles.expertButtonText}>Open expert review</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.expertButton, expertReviewMutation.isPending && { opacity: 0.6 }]}
+                  disabled={expertReviewMutation.isPending}
+                  onPress={() => expertReviewMutation.mutate(result.observation_id!)}
+                >
+                  <Text style={styles.expertButtonText}>{expertReviewMutation.isPending ? 'Requesting…' : 'Request expert review'}</Text>
+                </TouchableOpacity>
+              )}
+              {expertReviewMutation.error ? <Text style={styles.saveError}>{expertReviewMutation.error.message}</Text> : null}
+            </Card>
+          ) : null}
 
           {result && journey ? (
             <TouchableOpacity
@@ -442,6 +491,15 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md, padding: theme.spacing.md, marginTop: 4,
   },
   costBannerText: { fontSize: 13, fontWeight: '700', color: theme.colors.primaryDark },
+
+  expertHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  expertIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary + '16' },
+  expertTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.text },
+  expertCopy: { fontSize: 13, lineHeight: 18, color: theme.colors.textMuted, marginTop: 2 },
+  expertButton: { alignItems: 'center', paddingVertical: 11, borderRadius: theme.radius.md, backgroundColor: theme.colors.primary },
+  expertButtonText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  reviewRequested: { flexDirection: 'row', alignItems: 'center', gap: 7, padding: 10, borderRadius: theme.radius.md, backgroundColor: theme.colors.success + '12' },
+  reviewRequestedText: { flex: 1, color: theme.colors.success, fontSize: 13, fontWeight: '700' },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,

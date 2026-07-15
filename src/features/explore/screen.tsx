@@ -1,14 +1,17 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Modal,
+  KeyboardAvoidingView,
+  Modal as NativeModal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  type ModalProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -16,6 +19,16 @@ import { Pill } from '@/components/core/pill';
 import { cropCatalog } from '@/lib/constants/crops';
 import type { CropCatalogItem } from '@/lib/domain/types';
 import { theme } from '@/lib/theme';
+
+function Modal({ children, ...props }: ModalProps) {
+  return (
+    <NativeModal {...props}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {children}
+      </KeyboardAvoidingView>
+    </NativeModal>
+  );
+}
 
 // ─── Content tabs ─────────────────────────────────────────────────────────────
 
@@ -213,7 +226,7 @@ export function ExploreScreen() {
   const soilFitGood = crop.suitability_score >= 80;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <ScrollView
         contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
@@ -507,7 +520,7 @@ const picker = StyleSheet.create({
     left: 0,
     right: 0,
     top: 32,
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.96)',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     overflow: 'hidden',

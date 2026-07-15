@@ -1,8 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -167,11 +169,12 @@ function CreateSaleSheet({ farmId, onClose, onSaved }: { farmId: string; onClose
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={s.keyboardModal} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <TouchableWithoutFeedback onPress={saving ? undefined : onClose}>
         <View style={s.backdrop} />
       </TouchableWithoutFeedback>
       <View style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={s.handle} />
           <Text style={s.sheetTitle}>{t('finance.recordSale')}</Text>
 
@@ -221,6 +224,7 @@ function CreateSaleSheet({ farmId, onClose, onSaved }: { farmId: string; onClose
           </TouchableOpacity>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -249,6 +253,7 @@ function SalePaymentSheet({ farmId, sale, onClose, onSaved }: { farmId: string; 
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={s.keyboardModal} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <TouchableWithoutFeedback onPress={saving ? undefined : onClose}>
         <View style={s.backdrop} />
       </TouchableWithoutFeedback>
@@ -263,11 +268,13 @@ function SalePaymentSheet({ farmId, sale, onClose, onSaved }: { farmId: string; 
           <Text style={s.primaryBtnText}>{saving ? t('common.saving') : t('common.save')}</Text>
         </TouchableOpacity>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const s = StyleSheet.create({
+  keyboardModal: { flex: 1 },
   statRow: { flexDirection: 'row', gap: 12 },
   statCard: { flex: 1, borderRadius: theme.radius.lg, padding: 14, gap: 4 },
   statLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.textMuted },
@@ -290,7 +297,7 @@ const s = StyleSheet.create({
   outlineBtn: { marginTop: 12, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: theme.radius.pill, paddingVertical: 9, alignItems: 'center' },
   outlineBtnText: { color: theme.colors.primary, fontWeight: '700', fontSize: 13 },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', backgroundColor: theme.colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', backgroundColor: 'rgba(248, 247, 239, 0.96)', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: theme.colors.border, marginBottom: 6 },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text },
   fieldLabel: { fontSize: 12, fontWeight: '700', color: theme.colors.textMuted, marginTop: 10 },

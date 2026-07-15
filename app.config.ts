@@ -38,6 +38,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: "com.ecofy.mobile",
+    softwareKeyboardLayoutMode: "resize",
     googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? "./google-services.json",
     adaptiveIcon: {
       foregroundImage: "./assets/images/android-icon-foreground.png",
@@ -64,10 +65,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-dev-client",
+    [
+      "expo-build-properties",
+      {
+        android: {
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
+      },
+    ],
     "expo-apple-authentication",
     "expo-localization",
     "expo-secure-store",
     "expo-background-task",
+    "@react-native-community/datetimepicker",
     [
       "expo-location",
       {

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -183,7 +183,7 @@ export function SettingsScreen() {
     : '';
 
   return (
-    <Screen edges={['bottom']} contentContainerStyle={s.content}>
+    <Screen contentContainerStyle={s.content}>
 
       {/* ── Header ── */}
       <View style={s.pageHeader}>

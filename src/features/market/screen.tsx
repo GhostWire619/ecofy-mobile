@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -543,7 +543,7 @@ export function MarketScreen() {
   ];
 
   return (
-    <Screen edges={['bottom']} contentContainerStyle={s.content}>
+    <Screen contentContainerStyle={s.content}>
       {/* ── Tabs + crop selector ── */}
       <View style={s.topBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.tabRow}>
@@ -794,7 +794,7 @@ const s = StyleSheet.create({
     borderRadius: theme.radius.pill,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.84)',
   },
   tabBtnActive: {
     backgroundColor: theme.colors.primary,
@@ -820,7 +820,7 @@ const s = StyleSheet.create({
     borderRadius: theme.radius.pill,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.84)',
   },
   cropPickerText: { flex: 1, fontSize: 14, fontWeight: '600', color: theme.colors.text },
   refreshBtn: {
@@ -829,7 +829,7 @@ const s = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.84)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -851,7 +851,7 @@ const s = StyleSheet.create({
     borderRadius: theme.radius.pill,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.84)',
   },
   filterPillText: { flex: 1, minWidth: 0, fontSize: 13, fontWeight: '600', color: theme.colors.text },
   intervalGroup: {
@@ -869,7 +869,7 @@ const s = StyleSheet.create({
   // ── KPI ──
   kpiRow: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.border,
@@ -883,7 +883,7 @@ const s = StyleSheet.create({
 
   // ── Chart ──
   chartCard: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)',
     borderRadius: 20,
     paddingVertical: 16,
     paddingHorizontal: 16,
@@ -897,7 +897,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -925,7 +925,7 @@ const s = StyleSheet.create({
   compTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text },
   compMeta: { fontSize: 13, color: theme.colors.textMuted },
   regionCard: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)',
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
@@ -947,7 +947,7 @@ const s = StyleSheet.create({
 
   // ── News ──
   newsCard: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.88)',
     borderRadius: 28,
     padding: 20,
     borderWidth: 1,
@@ -970,7 +970,7 @@ const s = StyleSheet.create({
 
   // ── Empty ──
   emptyBox: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)',
     borderRadius: 18,
     padding: 24,
     alignItems: 'center',
@@ -982,7 +982,7 @@ const s = StyleSheet.create({
 
   // ── Bottom sheet ──
   sheet: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.94)',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingBottom: 34,

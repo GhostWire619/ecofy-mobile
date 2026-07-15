@@ -348,7 +348,7 @@ export function FarmMapScreen({ farmId }: FarmMapScreenProps) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f4f0e7',
+    backgroundColor: 'transparent',
   },
   page: {
     flex: 1,

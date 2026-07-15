@@ -196,7 +196,7 @@ export function StartJourneySheet({
 const st = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.96)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: theme.spacing.lg,

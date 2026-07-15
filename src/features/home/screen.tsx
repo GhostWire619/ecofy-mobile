@@ -1,9 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Modal,
+  KeyboardAvoidingView,
+  Modal as NativeModal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,16 +13,27 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  type ModalProps,
 } from 'react-native';
 
 import { Screen } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { mobileApi } from '@/lib/api/mobile';
-import { farmRepository } from '@/lib/db/repositories';
+import { farmRepository, journeyRepository } from '@/lib/db/repositories';
 import type { FarmHealthSummary, FarmRecord, JourneyRecord, WeatherCacheRecord } from '@/lib/domain/types';
 import { normalizeFarmHealthSummary, normalizeFarmRecord, normalizeJourneyRecord } from '@/features/farms/data';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
+
+function Modal({ children, ...props }: ModalProps) {
+  return (
+    <NativeModal {...props}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {children}
+      </KeyboardAvoidingView>
+    </NativeModal>
+  );
+}
 
 // ─── Risk helpers ─────────────────────────────────────────────────────────────
 
@@ -346,11 +359,19 @@ export function HomeScreen() {
   }
 
   async function handleSetActiveFarm(farmId: string) {
+    const farmJourney = journeyForFarm(farmId);
     await farmRepository.setSelectedFarmId(farmId);
+    await journeyRepository.setSelectedJourney(farmJourney?.id ?? null);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['active-farm-selection'] }),
       queryClient.invalidateQueries({ queryKey: ['today-screen'] }),
       queryClient.invalidateQueries({ queryKey: ['journey-screen'] }),
+      queryClient.invalidateQueries({ queryKey: ['journeys-list'] }),
+      queryClient.invalidateQueries({ queryKey: ['logbook-online'] }),
+      queryClient.invalidateQueries({ queryKey: ['my-farm'] }),
+      queryClient.invalidateQueries({ queryKey: ['assistant-journey'] }),
+      queryClient.invalidateQueries({ queryKey: ['scan-active-journey'] }),
+      queryClient.invalidateQueries({ queryKey: ['smart-nudges'] }),
     ]);
   }
 
@@ -366,7 +387,7 @@ export function HomeScreen() {
   });
 
   return (
-    <Screen edges={['bottom']} contentContainerStyle={s.content}>
+    <Screen contentContainerStyle={s.content}>
 
       {/* ── Farm count + primary action ── */}
       <View style={s.utilityRow}>
@@ -467,20 +488,20 @@ const s = StyleSheet.create({
 
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: 'rgba(255, 253, 247, 0.84)',
+    borderRadius: theme.radius.pill, borderWidth: 1, borderColor: 'rgba(39, 73, 47, 0.10)',
     paddingHorizontal: 14, paddingVertical: 10,
   },
   searchInput: { flex: 1, fontSize: 14, color: theme.colors.text, paddingVertical: 0 },
 
   // ── Card ──
   card: {
-    backgroundColor: theme.colors.surface, borderRadius: 20, padding: 14,
-    borderWidth: 1, borderColor: theme.colors.border, gap: 10,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)', borderRadius: 20, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(39, 73, 47, 0.10)', gap: 10,
   },
   cardActive: {
     borderColor: '#b8d9c6',
-    backgroundColor: '#f6fbf7',
+    backgroundColor: 'rgba(246, 251, 247, 0.82)',
   },
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
@@ -534,7 +555,7 @@ const s = StyleSheet.create({
 
   // ── Action sheet ──
   sheet: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.94)',
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingTop: 10, paddingBottom: 32, paddingHorizontal: 20,
   },
@@ -552,8 +573,8 @@ const s = StyleSheet.create({
 
   // ── Empty ──
   emptyCard: {
-    backgroundColor: theme.colors.surface, borderRadius: 24, padding: 28,
-    borderWidth: 1.5, borderColor: theme.colors.border, borderStyle: 'dashed',
+    backgroundColor: 'rgba(255, 253, 247, 0.86)', borderRadius: 24, padding: 28,
+    borderWidth: 1.5, borderColor: 'rgba(39, 73, 47, 0.12)', borderStyle: 'dashed',
     alignItems: 'center', gap: 10,
   },
   emptyIcon: {
@@ -573,8 +594,8 @@ const s = StyleSheet.create({
   loadingRow: { alignItems: 'center', paddingVertical: 32 },
   loadingText: { fontSize: 14, color: theme.colors.textMuted },
   noResultsCard: {
-    backgroundColor: theme.colors.surface, borderRadius: 18, padding: 20,
-    alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)', borderRadius: 18, padding: 20,
+    alignItems: 'center', borderWidth: 1, borderColor: 'rgba(39, 73, 47, 0.10)',
   },
   noResultsText: { fontSize: 14, color: theme.colors.textMuted },
 });

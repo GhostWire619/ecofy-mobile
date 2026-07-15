@@ -1,17 +1,20 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { format, parseISO } from 'date-fns';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
+  KeyboardAvoidingView,
+  Modal as NativeModal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  type ModalProps,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { mobileApi } from '@/lib/api/mobile';
@@ -39,6 +42,16 @@ import {
 import { StartJourneySheet } from '@/features/farms/start-journey-sheet';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
+
+function Modal({ children, ...props }: ModalProps) {
+  return (
+    <NativeModal {...props}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {children}
+      </KeyboardAvoidingView>
+    </NativeModal>
+  );
+}
 
 type WorkspaceTab = 'overview' | 'notes' | 'ledger' | 'market' | 'risks';
 
@@ -87,6 +100,7 @@ type FarmMarketData = {
 type FarmWorkspaceScreenProps = {
   farmId: string;
   onClose?: () => void;
+  embedded?: boolean;
 };
 
 type EditableFarmField =
@@ -814,7 +828,7 @@ function RiskActionCard({
   );
 }
 
-export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProps) {
+export function FarmWorkspaceScreen({ farmId, onClose, embedded = false }: FarmWorkspaceScreenProps) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<WorkspaceTab>('overview');
@@ -1144,8 +1158,8 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
 
   if (!farmId) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.sheet}>
+      <SafeAreaView style={styles.safeArea} edges={embedded ? [] : ['top', 'bottom']}>
+        <View style={[styles.sheet, embedded && styles.embeddedSheet]}>
           <View style={styles.centerState}>
             <Text style={styles.centerTitle}>Farm not found</Text>
             <Text style={styles.centerMessage}>Open a farm from the Farms tab to view its dashboard.</Text>
@@ -1157,8 +1171,8 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
 
   if (coreQuery.isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.sheet}>
+      <SafeAreaView style={styles.safeArea} edges={embedded ? [] : ['top', 'bottom']}>
+        <View style={[styles.sheet, embedded && styles.embeddedSheet]}>
           <View style={styles.centerState}>
             <ActivityIndicator color={theme.colors.primary} />
             <Text style={styles.centerMessage}>Loading farm dashboard...</Text>
@@ -1170,8 +1184,8 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
 
   if (coreQuery.isError || !coreQuery.data) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.sheet}>
+      <SafeAreaView style={styles.safeArea} edges={embedded ? [] : ['top', 'bottom']}>
+        <View style={[styles.sheet, embedded && styles.embeddedSheet]}>
           <View style={styles.centerState}>
             <Text style={styles.centerTitle}>Farm not found</Text>
             <Text style={styles.centerMessage}>{errorMessage(coreQuery.error)}</Text>
@@ -1231,26 +1245,31 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
       : editorConfig;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.sheet}>
+    <SafeAreaView style={styles.safeArea} edges={embedded ? [] : ['top', 'bottom']}>
+      <View style={[styles.sheet, embedded && styles.embeddedSheet]}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headerRow}>
             <View style={styles.headerCopy}>
+              {embedded ? <Text style={styles.eyebrow}>FARM OVERVIEW</Text> : null}
               <Text style={styles.screenTitle}>{coreQuery.data.farm.name}</Text>
-              <Text style={styles.screenSubtitle}>{t('farmDetails.farmDashboard')}</Text>
+              <Text style={styles.screenSubtitle} numberOfLines={1}>
+                {coreQuery.data.farm.region || t('farmDetails.farmDashboard')}
+              </Text>
             </View>
-            <TouchableOpacity
-              accessibilityRole="button"
-              onPress={closeScreen}
-              style={styles.closeButton}
-              testID="farm-workspace-close"
-            >
-              <Text style={styles.closeButtonText}>{t('common.close')}</Text>
-            </TouchableOpacity>
+            {!embedded ? (
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={closeScreen}
+                style={styles.closeButton}
+                testID="farm-workspace-close"
+              >
+                <Text style={styles.closeButtonText}>{t('common.close')}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           <View style={styles.topTabBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRowCompact}>
+            <View style={styles.tabRowCompact}>
               <TouchableOpacity
                 accessibilityRole="button"
                 onPress={() => setMode('overview')}
@@ -1311,7 +1330,7 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
                   {t('farmDetails.risks')}
                 </Text>
               </TouchableOpacity>
-            </ScrollView>
+            </View>
           </View>
 
           {!coreQuery.data.journey ? (
@@ -1721,17 +1740,22 @@ export function FarmWorkspaceScreen({ farmId, onClose }: FarmWorkspaceScreenProp
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: theme.colors.background,
   },
   sheet: {
     flex: 1,
-    backgroundColor: '#f4f0e7',
+    backgroundColor: 'rgba(244, 240, 231, 0.94)',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
   },
+  embeddedSheet: {
+    backgroundColor: theme.colors.background,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 14,
+    paddingTop: 10,
     paddingBottom: 32,
     gap: 10,
   },
@@ -1761,7 +1785,14 @@ const styles = StyleSheet.create({
   },
   headerCopy: {
     flex: 1,
-    gap: 2,
+    gap: 3,
+  },
+  eyebrow: {
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+    color: theme.colors.primary,
   },
   topTabBar: {
     marginTop: -2,
@@ -1769,17 +1800,18 @@ const styles = StyleSheet.create({
   tabRowCompact: {
     flexDirection: 'row',
     gap: 6,
-    paddingRight: 6,
   },
   tabChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#ded8ca',
-    backgroundColor: '#f8f5ed',
-    paddingHorizontal: 11,
+    backgroundColor: 'rgba(248, 245, 237, 0.84)',
+    paddingHorizontal: 6,
     paddingVertical: 8,
   },
   tabChipActive: {
@@ -1856,7 +1888,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e1ddcf',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.88)',
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
@@ -1907,7 +1939,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#e8e2d7',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.78)',
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 4,
@@ -2060,7 +2092,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#eadfcb',
-    backgroundColor: '#fbfaf6',
+    backgroundColor: 'rgba(251, 250, 246, 0.88)',
     padding: 14,
     gap: 12,
   },
@@ -2114,7 +2146,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#ddd8c8',
-    backgroundColor: '#fffefc',
+    backgroundColor: 'rgba(255, 254, 252, 0.82)',
     paddingVertical: 12,
   },
   ctaButtonText: {
@@ -2131,7 +2163,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#e8e2d7',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.78)',
     paddingVertical: 14,
     paddingHorizontal: 10,
     alignItems: 'center',
@@ -2155,7 +2187,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#e7e2d8',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.82)',
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -2182,7 +2214,7 @@ const styles = StyleSheet.create({
     borderColor: '#e1ddcf',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#fffefb',
+    backgroundColor: 'rgba(255, 254, 251, 0.82)',
   },
   disabledButton: {
     opacity: 0.5,
@@ -2218,7 +2250,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#e7e2d8',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.82)',
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 4,
@@ -2290,7 +2322,7 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.82)',
     borderWidth: 1,
     borderColor: '#e1ddcf',
   },
@@ -2313,7 +2345,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#eadfcb',
-    backgroundColor: '#fbfaf6',
+    backgroundColor: 'rgba(251, 250, 246, 0.86)',
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
@@ -2420,7 +2452,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: '#eadfcb',
-    backgroundColor: '#fbfaf6',
+    backgroundColor: 'rgba(251, 250, 246, 0.88)',
     padding: 16,
     gap: 12,
   },
@@ -2563,7 +2595,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#e8e2d7',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.84)',
     padding: 12,
   },
   logIconWrap: {
@@ -2657,7 +2689,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#e1ddcf',
-    backgroundColor: '#fffdfa',
+    backgroundColor: 'rgba(255, 253, 247, 0.82)',
     paddingHorizontal: 10,
     paddingVertical: 5,
   },

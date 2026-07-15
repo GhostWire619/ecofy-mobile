@@ -3,11 +3,12 @@ import { Stack, router, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, AppState, Platform, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { XpGainProvider } from '@/components/game';
+import { mobileApi } from '@/lib/api/mobile';
 import { AuthProvider, useAuth } from '@/lib/auth/provider';
 import { farmRepository, INTRO_SEEN_KEY, prefsRepository } from '@/lib/db/repositories';
 import { I18nProvider, useI18n } from '@/lib/i18n';
@@ -38,6 +39,7 @@ function NavigationGate() {
   const { isReady, isAuthenticated, onboardingComplete, markOnboardingComplete, user } = useAuth();
   const { isReady: i18nReady, locale } = useI18n();
   const segments = useSegments();
+  const isExpert = user?.role === 'agronomist' || user?.role === 'extension_officer';
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
@@ -73,9 +75,17 @@ function NavigationGate() {
       return;
     }
 
+    if (isAuthenticated && isExpert) {
+      if ((segments as readonly string[])[0] !== '(expert)') {
+        router.replace('/(expert)' as never);
+      }
+      return;
+    }
+
     if (isAuthenticated && !onboardingComplete && !inOnboarding) {
-      // If the user already has farms locally, skip onboarding and go home
-      farmRepository.listFarms().then((farms) => {
+      // Farm ownership belongs to the authenticated server account. Check the
+      // server first so reinstalls and new devices do not rely on an empty local DB.
+      mobileApi.listFarms().catch(() => farmRepository.listFarms()).then((farms) => {
         if (farms.length > 0) {
           markOnboardingComplete().catch(() => undefined);
           router.replace('/(tabs)/today' as never);
@@ -96,7 +106,7 @@ function NavigationGate() {
     if (isAuthenticated && onboardingComplete && (inAuth || inOnboarding || inIntro || onLanding)) {
       router.replace('/(tabs)/today' as never);
     }
-  }, [i18nReady, isAuthenticated, isReady, markOnboardingComplete, onboardingComplete, segments]);
+  }, [i18nReady, isAuthenticated, isExpert, isReady, markOnboardingComplete, onboardingComplete, segments]);
 
   useEffect(() => {
     if (!user || !isAuthenticated || !i18nReady) {
@@ -145,12 +155,15 @@ function NavigationGate() {
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(expert)" options={{ headerShown: false }} />
+      <Stack.Screen name="consults/[consultId]" options={{ title: 'Expert review' }} />
       <Stack.Screen
         name="assistant"
         options={{
           headerShown: false,
         }}
       />
+      <Stack.Screen name="agronomists" options={{ title: 'Agronomists' }} />
       <Stack.Screen
         name="notes/[logId]"
         options={{
@@ -196,7 +209,7 @@ function NavigationGate() {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={styles.appRoot}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <I18nProvider>
@@ -214,3 +227,10 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+});

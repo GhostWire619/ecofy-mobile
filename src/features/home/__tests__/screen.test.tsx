@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { focusManager, onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -14,11 +14,6 @@ const mockMobileApi = {
   getWeatherForFarm: jest.fn(),
   getFarmHealthSummary: jest.fn(),
 };
-const mockFarmRepository = {
-  getSelectedFarmId: jest.fn(),
-  setSelectedFarmId: jest.fn(),
-};
-
 jest.mock('expo-router', () => ({
   router: mockRouter,
 }));
@@ -27,8 +22,16 @@ jest.mock('@/lib/api/mobile', () => ({
   mobileApi: mockMobileApi,
 }));
 jest.mock('@/lib/db/repositories', () => ({
-  farmRepository: mockFarmRepository,
+  farmRepository: {
+    getSelectedFarmId: jest.fn(),
+    setSelectedFarmId: jest.fn(),
+  },
+  journeyRepository: {
+    setSelectedJourney: jest.fn(),
+  },
 }));
+const { farmRepository: mockFarmRepository, journeyRepository: mockJourneyRepository } =
+  jest.requireMock('@/lib/db/repositories');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { HomeScreen } = require('@/features/home/screen');
 
@@ -51,6 +54,7 @@ describe('HomeScreen', () => {
     focusManager.setFocused(true);
     mockFarmRepository.getSelectedFarmId.mockResolvedValue(null);
     mockFarmRepository.setSelectedFarmId.mockResolvedValue(undefined);
+    mockJourneyRepository.setSelectedJourney.mockResolvedValue(undefined);
 
     mockMobileApi.listFarms.mockResolvedValue([
       {
@@ -219,5 +223,33 @@ describe('HomeScreen', () => {
     fireEvent.press(await screen.findByTestId('farm-action-view-map'));
 
     expect(mockRouter.push).toHaveBeenCalledWith('/farms-map/farm-1');
+  });
+
+  it('sets both the active farm and that farm journey', async () => {
+    const client = createQueryClient();
+
+    render(
+      <SafeAreaProvider
+        initialMetrics={{
+          frame: { x: 0, y: 0, width: 390, height: 844 },
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+        }}
+      >
+        <I18nProvider>
+          <QueryClientProvider client={client}>
+            <HomeScreen />
+          </QueryClientProvider>
+        </I18nProvider>
+      </SafeAreaProvider>,
+    );
+
+    await screen.findByText('Alpha Farm');
+    fireEvent.press(screen.getByTestId('farm-menu-button-farm-1'));
+    fireEvent.press(await screen.findByTestId('farm-action-set-active'));
+
+    await waitFor(() => {
+      expect(mockFarmRepository.setSelectedFarmId).toHaveBeenCalledWith('farm-1');
+      expect(mockJourneyRepository.setSelectedJourney).toHaveBeenCalledWith('journey-1');
+    });
   });
 });

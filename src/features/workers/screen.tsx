@@ -1,10 +1,12 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -114,9 +116,10 @@ function WorkerSheet({ farmId, onClose, onSaved }: { farmId: string; onClose: ()
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={s.keyboardModal} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <TouchableWithoutFeedback onPress={saving ? undefined : onClose}><View style={s.backdrop} /></TouchableWithoutFeedback>
       <View style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={s.handle} />
           <Text style={s.sheetTitle}>{t('workers.addWorker')}</Text>
           <Text style={s.fieldLabel}>{t('workers.name')}</Text>
@@ -139,6 +142,7 @@ function WorkerSheet({ farmId, onClose, onSaved }: { farmId: string; onClose: ()
           </TouchableOpacity>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -168,9 +172,10 @@ function WorkerDetailModal({ farmId, worker, onClose, onChanged }: { farmId: str
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={s.keyboardModal} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <TouchableWithoutFeedback onPress={onClose}><View style={s.backdrop} /></TouchableWithoutFeedback>
       <View style={[s.sheet, { paddingBottom: insets.bottom + 16, maxHeight: '90%' }]}>
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
           <View style={s.handle} />
           <Text style={s.sheetTitle}>{worker.name}</Text>
           <Text style={s.subtle}>{t(`workers.wage.${worker.wage_type}`)} · {fmtMoney(worker.wage_rate, worker.currency)}{worker.phone ? ` · ${worker.phone}` : ''}</Text>
@@ -223,6 +228,7 @@ function WorkerDetailModal({ farmId, worker, onClose, onChanged }: { farmId: str
           <TouchableOpacity onPress={confirmDelete} style={s.deleteBtn}><Text style={s.deleteText}>{t('workers.deleteWorker')}</Text></TouchableOpacity>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -338,7 +344,8 @@ const s = StyleSheet.create({
   inlineForm: { marginTop: 14, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
 
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '90%', backgroundColor: theme.colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10 },
+  keyboardModal: { flex: 1 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '90%', backgroundColor: 'rgba(248, 247, 239, 0.96)', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: theme.colors.border, marginBottom: 6 },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text },
   fieldLabel: { fontSize: 12, fontWeight: '700', color: theme.colors.textMuted, marginTop: 10 },

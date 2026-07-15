@@ -89,11 +89,11 @@ export function AuthDivider({ label = 'or continue with' }: { label?: string }) 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: theme.colors.primaryDark,
+    backgroundColor: 'transparent',
   },
   scrollContent: {
     flexGrow: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'transparent',
   },
   hero: {
     height: 286,
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderCurve: 'continuous',
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.94)',
     paddingHorizontal: 18,
     paddingTop: 24,
     paddingBottom: 24,

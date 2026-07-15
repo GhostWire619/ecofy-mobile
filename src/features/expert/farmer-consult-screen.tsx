@@ -1,0 +1,75 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
+import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+
+import { Card } from '@/components/core/card';
+import { Screen } from '@/components/layout/screen';
+import { SkeletonCard } from '@/components/state/skeleton';
+import { consultsApi } from '@/lib/api/consults';
+import { theme } from '@/lib/theme';
+import { toAbsoluteUrl } from '@/lib/utils/url';
+
+export function FarmerConsultScreen() {
+  const { consultId } = useLocalSearchParams<{ consultId: string }>();
+  const qc = useQueryClient();
+  const [message, setMessage] = useState('');
+  const query = useQuery({ queryKey: ['farmer-consult', consultId], queryFn: () => consultsApi.getFarmerConsult(consultId), enabled: Boolean(consultId) });
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['farmer-consult', consultId] });
+  const send = useMutation({ mutationFn: () => consultsApi.sendMessage(consultId, message.trim()), onSuccess: () => { setMessage(''); refresh(); } });
+  const accept = useMutation({ mutationFn: (proposalId: string) => consultsApi.acceptTaskProposal(consultId, proposalId), onSuccess: refresh });
+  const resolve = useMutation({ mutationFn: () => consultsApi.resolve(consultId), onSuccess: refresh });
+  if (query.isLoading) return <Screen><SkeletonCard /><SkeletonCard /></Screen>;
+  const consult = query.data;
+  if (!consult) return <Screen><Card><Text style={s.error}>Expert review could not be loaded.</Text></Card></Screen>;
+  const image = consult.observation?.image_urls?.[0];
+  return (
+    <Screen onRefresh={query.refetch} refreshing={query.isRefetching} contentContainerStyle={s.content}>
+      <View>
+        <Text style={s.eyebrow}>{consult.status.replace('_', ' ').toUpperCase()}</Text>
+        <Text style={s.title}>{consult.observation?.category?.replaceAll('_', ' ')}</Text>
+        <Text style={s.muted}>{consult.advisor_name ? `Agronomist: ${consult.advisor_name}` : 'Waiting for a verified agronomist'}</Text>
+      </View>
+      {image ? <Image source={{ uri: toAbsoluteUrl(image) }} style={s.image} contentFit="cover" /> : null}
+      {consult.assessment ? (
+        <Card>
+          <View style={s.assessmentHead}><Ionicons name="shield-checkmark" size={22} color={theme.colors.success} /><Text style={s.cardTitle}>Expert assessment</Text></View>
+          <Text style={s.decision}>{consult.assessment.decision.replace('_', ' ')}</Text>
+          <Text style={s.body}>{consult.assessment.reasoning}</Text>
+          <Text style={s.muted}>Expert confidence {Math.round((consult.assessment.expert_confidence ?? 0) * 100)}% · Engine plan {consult.assessment.endorses_engine_plan ? 'endorsed' : 'not endorsed'}</Text>
+        </Card>
+      ) : <Card><Text style={s.body}>Your scan and journey context are ready for expert review.</Text></Card>}
+      {(consult.task_proposals ?? []).map((proposal) => (
+        <Card key={proposal.id}>
+          <Text style={s.cardTitle}>Optional task proposed</Text>
+          <Text style={s.body}>{proposal.title}</Text>
+          {proposal.instructions.map((line, index) => <Text key={index} style={s.muted}>• {line}</Text>)}
+          {proposal.status === 'proposed' ? (
+            <Pressable style={s.primaryButton} disabled={accept.isPending} onPress={() => accept.mutate(proposal.id)}><Text style={s.primaryButtonText}>Accept and add to journey</Text></Pressable>
+          ) : <Text style={s.accepted}>Added to your journey</Text>}
+        </Card>
+      ))}
+      <Card>
+        <Text style={s.cardTitle}>Conversation</Text>
+        {(consult.messages ?? []).map((item) => <View key={item.id} style={s.message}><Text style={s.sender}>{item.sender_name ?? 'Participant'}</Text><Text style={s.body}>{item.content}</Text></View>)}
+        {consult.status !== 'resolved' ? <><TextInput style={s.input} value={message} onChangeText={setMessage} placeholder="Reply to the agronomist…" placeholderTextColor={theme.colors.textMuted} multiline /><Pressable style={[s.primaryButton, !message.trim() && { opacity: 0.5 }]} disabled={!message.trim() || send.isPending} onPress={() => send.mutate()}><Text style={s.primaryButtonText}>Send message</Text></Pressable></> : null}
+      </Card>
+      {consult.assessment && consult.status !== 'resolved' ? (
+        <Pressable style={s.resolveButton} disabled={resolve.isPending} onPress={() => resolve.mutate()}><Text style={s.resolveButtonText}>Mark review complete</Text></Pressable>
+      ) : null}
+    </Screen>
+  );
+}
+
+const s = StyleSheet.create({
+  content: { gap: 14, paddingBottom: 40 }, eyebrow: { color: theme.colors.primary, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+  title: { color: theme.colors.text, fontSize: 24, fontWeight: '800', textTransform: 'capitalize', marginTop: 3 }, muted: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
+  image: { width: '100%', height: 240, borderRadius: theme.radius.lg, backgroundColor: theme.colors.border }, assessmentHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardTitle: { color: theme.colors.text, fontSize: 16, fontWeight: '800' }, decision: { color: theme.colors.success, fontWeight: '800', fontSize: 18, textTransform: 'capitalize' }, body: { color: theme.colors.text, fontSize: 14, lineHeight: 20 },
+  message: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }, sender: { color: theme.colors.primary, fontWeight: '800', fontSize: 11 },
+  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, padding: 11, minHeight: 54, color: theme.colors.text, textAlignVertical: 'top' },
+  primaryButton: { backgroundColor: theme.colors.primary, borderRadius: theme.radius.md, paddingVertical: 12, alignItems: 'center', marginTop: 6 }, primaryButtonText: { color: '#fff', fontWeight: '800' }, accepted: { color: theme.colors.success, fontWeight: '800' }, error: { color: theme.colors.danger },
+  resolveButton: { borderWidth: 1, borderColor: theme.colors.primary, borderRadius: theme.radius.md, paddingVertical: 12, alignItems: 'center' }, resolveButtonText: { color: theme.colors.primary, fontWeight: '800' },
+});

@@ -1,11 +1,15 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { format, parseISO } from 'date-fns';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,10 +17,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SkeletonCard } from '@/components/state/skeleton';
+import { activitiesForMode, getActivity, type ActivityMode } from '@/features/logbook/activity-registry';
+import { activitiesApi } from '@/lib/api/activities';
+import { salesApi } from '@/lib/api/finance';
 import { mobileApi } from '@/lib/api/mobile';
+import { equipmentApi, inventoryApi } from '@/lib/api/resources';
+import { workersApi } from '@/lib/api/workers';
 import { farmRepository } from '@/lib/db/repositories';
 import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord, PlotRecord } from '@/lib/domain/types';
 import { createId } from '@/lib/utils/id';
@@ -24,20 +33,15 @@ import { toAbsoluteUrl } from '@/lib/utils/url';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
-const OPERATION_TYPES = [
-  'Scouting', 'Spraying', 'Fertilizing', 'Irrigation', 'Weeding', 'Tilling', 'Harvesting',
-] as const;
-type OperationType = typeof OPERATION_TYPES[number];
+type LogFilter = 'all' | 'work' | 'expenses';
 
-const OP_ICONS: Record<OperationType, React.ComponentProps<typeof Ionicons>['name']> = {
-  Scouting: 'eye-outline',
-  Spraying: 'water-outline',
-  Fertilizing: 'leaf-outline',
-  Irrigation: 'rainy-outline',
-  Weeding: 'cut-outline',
-  Tilling: 'construct-outline',
-  Harvesting: 'basket-outline',
-};
+function isLegacyDemoLog(log: LogRecord): boolean {
+  return (
+    log.operation_type?.trim().toLowerCase() === 'fertilizing' &&
+    log.notes?.trim().toLowerCase() === 'applied fertilizer to the farm' &&
+    Number(log.cost) === 99944
+  );
+}
 
 type LogWithImages = LogRecord & {
   images?: { url: string; thumbnail_url?: string | null }[];
@@ -110,8 +114,7 @@ export function AddLogSheet({
   /** The farmer's active farm — preselected if it can take a note. */
   defaultFarmId?: string | null;
 }) {
-  const { t } = useI18n();
-  const insets = useSafeAreaInsets();
+  const { t, locale } = useI18n();
   // Prefer the active farm (if loggable), else the first loggable farm.
   const initialFarmId = (() => {
     if (lockedFarmId) return lockedFarmId;
@@ -119,13 +122,26 @@ export function AddLogSheet({
     return active?.id ?? firstLoggableFarmId(farmOptions);
   })();
   const [farmId, setFarmId] = useState(initialFarmId);
-  const [opType, setOpType] = useState<OperationType>('Scouting');
+  const [mode, setMode] = useState<ActivityMode>('work');
+  const [activityId, setActivityId] = useState('scouting');
+  const [showActivityPicker, setShowActivityPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [notes, setNotes] = useState('');
   const [cost, setCost] = useState('');
   const [photos, setPhotos] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [plotId, setPlotId] = useState<string | null>(null);
-  const [dateOffset, setDateOffset] = useState(0); // days back from today
+  const [activityDate, setActivityDate] = useState(new Date());
   const [isFarmMenuOpen, setIsFarmMenuOpen] = useState(false);
+  const [crewIds, setCrewIds] = useState<string[]>([]);
+  const [inputItemId, setInputItemId] = useState('');
+  const [inputQty, setInputQty] = useState('');
+  const [newInputName, setNewInputName] = useState('');
+  const [equipmentId, setEquipmentId] = useState('');
+  const [equipmentLitres, setEquipmentLitres] = useState('');
+  const [buyerId, setBuyerId] = useState('');
+  const [newBuyerName, setNewBuyerName] = useState('');
+  const [yieldQty, setYieldQty] = useState('');
+  const [amountReceived, setAmountReceived] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,6 +152,22 @@ export function AddLogSheet({
     enabled: !!farmId,
   });
   const plots = plotsQuery.data ?? [];
+  const activity = getActivity(activityId);
+  const needsWorkers = activity.entities.includes('workers');
+  const needsInput = activity.entities.includes('input');
+  const needsEquipment = activity.entities.includes('equipment');
+  const needsBuyer = activity.entities.includes('buyer');
+  const needsYield = activity.entities.includes('yield');
+
+  const workersQuery = useQuery({ queryKey: ['activity-workers', farmId], queryFn: () => workersApi.list(farmId), enabled: Boolean(farmId && needsWorkers) });
+  const inventoryQuery = useQuery({ queryKey: ['activity-inventory', farmId], queryFn: () => inventoryApi.list(farmId), enabled: Boolean(farmId && needsInput) });
+  const equipmentQuery = useQuery({ queryKey: ['activity-equipment', farmId], queryFn: () => equipmentApi.list(farmId), enabled: Boolean(farmId && needsEquipment) });
+  const buyersQuery = useQuery({ queryKey: ['activity-buyers', farmId], queryFn: () => salesApi.listBuyers(farmId), enabled: Boolean(farmId && needsBuyer) });
+
+  useEffect(() => {
+    const firstPlotId = plotsQuery.data?.[0]?.id;
+    if (!plotId && firstPlotId) setPlotId(String(firstPlotId));
+  }, [plotId, plotsQuery.data]);
 
   const selectedFarm =
     farmOptions.find((f) => f.id === farmId) ??
@@ -193,6 +225,20 @@ export function AddLogSheet({
     setPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index));
   }
 
+  function changeMode(nextMode: ActivityMode) {
+    setMode(nextMode);
+    setActivityId(activitiesForMode(nextMode)[0]?.id ?? 'scouting');
+    setCrewIds([]);
+    setInputItemId('');
+    setEquipmentId('');
+    setBuyerId('');
+  }
+
+  function onDateChange(event: DateTimePickerEvent, date?: Date) {
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    if (event.type !== 'dismissed' && date) setActivityDate(date);
+  }
+
   async function save() {
     if (!farmId || !selectedFarm) {
       setError('logbook.errChooseFarm');
@@ -204,33 +250,48 @@ export function AddLogSheet({
       setError('logbook.errFarmNoJourney');
       return;
     }
+    if (!plotId) {
+      setError('Choose a plot before saving this activity.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      const now = new Date().toISOString();
-      const when = new Date();
-      when.setDate(when.getDate() - dateOffset);
-      const logId = createId();
-      const log: LogRecord = {
-        id: logId,
-        client_mutation_id: createId('mutation'),
-        farm_id: farmId,
-        journey_id: selectedFarm.journeyId,
+      const images: { url: string }[] = [];
+      for (const photo of photos) {
+        const uploaded = await mobileApi.uploadImage(photo.uri, photo.mimeType ?? 'image/jpeg', 'logs');
+        if (uploaded?.url) images.push({ url: uploaded.url });
+      }
+      const amount = Math.max(0, Math.round(Number(cost) || 0));
+      const selectedInput = inventoryQuery.data?.find((item) => item.id === inputItemId);
+      await activitiesApi.create(farmId, {
+        operation_type: activity.id,
         plot_id: plotId,
-        operation_type: opType,
-        date: when.toISOString().slice(0, 10),
-        cost: cost ? parseFloat(cost) : null,
+        journey_id: selectedFarm.journeyId,
+        date: activityDate.toISOString().slice(0, 10),
+        cost: amount,
         notes: notes.trim() || null,
-        location_latitude: null,
-        location_longitude: null,
-        snapshot_url: null,
-        updated_at: now,
-        deleted_at: null,
-        sync_status: 'pending',
-        last_synced_at: null,
-      };
-      const images = buildLogImageRecords(photos, { logId, timestamp: now });
-      await mobileApi.syncLog({ log, images });
+        images,
+        crew: needsWorkers ? crewIds.map((id) => ({ id })) : undefined,
+        crew_total: needsWorkers && amount > 0 ? amount : undefined,
+        input: needsInput && (inputItemId || newInputName.trim()) ? {
+          item_id: inputItemId && inputItemId !== '__new__' ? inputItemId : undefined,
+          item_name: inputItemId === '__new__' ? newInputName.trim() : undefined,
+          quantity: Math.max(0, Number(inputQty) || 0),
+          unit_cost: selectedInput?.unit_cost ?? undefined,
+        } : undefined,
+        equipment: needsEquipment && equipmentId ? {
+          equipment_id: equipmentId,
+          litres: activity.id === 'equipment_fuel' ? Math.max(0, Number(equipmentLitres) || 0) : undefined,
+        } : undefined,
+        sale: needsBuyer ? {
+          buyer_id: buyerId && buyerId !== '__new__' ? buyerId : undefined,
+          buyer_name: buyerId === '__new__' ? newBuyerName.trim() : undefined,
+          quantity: Math.max(0, Number(yieldQty) || 0) || undefined,
+          amount_received: amountReceived.trim() ? Math.max(0, Math.round(Number(amountReceived) || 0)) : undefined,
+        } : undefined,
+        yield_qty: needsYield && !needsBuyer ? Math.max(0, Number(yieldQty) || 0) || undefined : undefined,
+      }, createId('activity'));
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'logbook.errSaveFailed');
@@ -240,8 +301,15 @@ export function AddLogSheet({
   }
 
   return (
-    <View style={sheet.overlay}>
-      <View style={[sheet.panel, { paddingBottom: insets.bottom + 12 }]}>
+    <Modal
+      visible
+      animationType="slide"
+      presentationStyle="fullScreen"
+      statusBarTranslucent={false}
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView style={sheet.panel} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <SafeAreaView style={sheet.panel} edges={['top', 'bottom']}>
         <View style={sheet.formHeader}>
           <TouchableOpacity onPress={onClose} style={sheet.backBtn}>
             <Ionicons name="chevron-back" size={18} color={theme.colors.textMuted} />
@@ -253,7 +321,7 @@ export function AddLogSheet({
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets style={{ flex: 1 }}>
           <View style={sheet.body}>
             <View style={sheet.field}>
               <Text style={sheet.fieldLabel}>{t('logbook.images')}</Text>
@@ -345,37 +413,36 @@ export function AddLogSheet({
             ) : null}
 
             <View style={sheet.field}>
-              <Text style={sheet.fieldSubLabel}>{t('logs.activity')}</Text>
-              <View style={sheet.opGrid}>
-                {OPERATION_TYPES.map((op) => (
+              <Text style={sheet.fieldSubLabel}>{t('activityComposer.recording')}</Text>
+              <View style={sheet.modeControl}>
+                {(['work', 'buy', 'income'] as const).map((item) => (
                   <TouchableOpacity
-                    key={op}
-                    style={[sheet.opPill, opType === op && sheet.opPillActive]}
-                    onPress={() => setOpType(op)}
+                    key={item}
+                    style={[sheet.modeOption, mode === item && sheet.modeOptionActive]}
+                    onPress={() => changeMode(item)}
                   >
-                    <Ionicons
-                      name={OP_ICONS[op]}
-                      size={14}
-                      color={opType === op ? theme.colors.primary : theme.colors.textMuted}
-                    />
-                    <Text style={[sheet.opPillText, opType === op && sheet.opPillTextActive]}>
-                      {t(`operations.${op.toLowerCase()}`)}
+                    <Text style={[sheet.modeOptionText, mode === item && sheet.modeOptionTextActive]}>
+                      {t(`activityComposer.mode.${item}`)}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
+              <TouchableOpacity style={sheet.selectionRow} onPress={() => setShowActivityPicker(true)}>
+                <View style={sheet.selectionIcon}>
+                  <Ionicons name={activity.icon} size={19} color={theme.colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={sheet.selectionLabel}>{t('logs.activity')}</Text>
+                  <Text style={sheet.selectionValue}>{t(`operations.${activity.id}`)}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+              </TouchableOpacity>
             </View>
 
             {plots.length > 0 ? (
               <View style={sheet.field}>
                 <Text style={sheet.fieldSubLabel}>{t('logs.plot')}</Text>
                 <View style={sheet.opGrid}>
-                  <TouchableOpacity
-                    style={[sheet.opPill, !plotId && sheet.opPillActive]}
-                    onPress={() => setPlotId(null)}
-                  >
-                    <Text style={[sheet.opPillText, !plotId && sheet.opPillTextActive]}>{t('logs.wholeFarm')}</Text>
-                  </TouchableOpacity>
                   {plots.map((p) => (
                     <TouchableOpacity
                       key={p.id}
@@ -389,21 +456,88 @@ export function AddLogSheet({
               </View>
             ) : null}
 
+            {needsWorkers ? (
+              <View style={sheet.dynamicGroup}>
+                <Text style={sheet.fieldSubLabel}>{t('activityComposer.crew')}</Text>
+                <Text style={sheet.fieldHint}>{t('activityComposer.crewHint')}</Text>
+                <View style={sheet.opGrid}>
+                  {(workersQuery.data ?? []).map((worker) => {
+                    const selected = crewIds.includes(worker.id);
+                    return (
+                      <TouchableOpacity key={worker.id} style={[sheet.opPill, selected && sheet.opPillActive]} onPress={() => setCrewIds((ids) => selected ? ids.filter((id) => id !== worker.id) : [...ids, worker.id])}>
+                        <Ionicons name={selected ? 'checkmark-circle' : 'person-outline'} size={14} color={selected ? theme.colors.primary : theme.colors.textMuted} />
+                        <Text style={[sheet.opPillText, selected && sheet.opPillTextActive]}>{worker.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                {!workersQuery.isLoading && !workersQuery.data?.length ? <Text style={sheet.emptyHint}>{t('activityComposer.noWorkers')}</Text> : null}
+              </View>
+            ) : null}
+
+            {needsInput ? (
+              <View style={sheet.dynamicGroup}>
+                <Text style={sheet.fieldSubLabel}>{t(activity.id === 'input_purchase' ? 'activityComposer.inputPurchased' : 'activityComposer.inputUsed')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheet.horizontalChoices}>
+                  {(inventoryQuery.data ?? []).map((item) => (
+                    <TouchableOpacity key={item.id} style={[sheet.choiceCard, inputItemId === item.id && sheet.choiceCardActive]} onPress={() => setInputItemId(item.id)}>
+                      <Text style={[sheet.choiceCardTitle, inputItemId === item.id && sheet.choiceCardTitleActive]}>{item.name}</Text>
+                      <Text style={sheet.choiceCardMeta}>{item.current_qty ?? 0} {item.unit ?? ''} available</Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity style={[sheet.choiceCard, inputItemId === '__new__' && sheet.choiceCardActive]} onPress={() => setInputItemId('__new__')}>
+                    <Text style={[sheet.choiceCardTitle, inputItemId === '__new__' && sheet.choiceCardTitleActive]}>+ {t('activityComposer.newInput')}</Text>
+                    <Text style={sheet.choiceCardMeta}>{t('activityComposer.saveForLater')}</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+                {inputItemId === '__new__' ? <TextInput style={sheet.input} value={newInputName} onChangeText={setNewInputName} placeholder={t('activityComposer.inputName')} placeholderTextColor={theme.colors.textMuted} /> : null}
+                <TextInput style={sheet.input} value={inputQty} onChangeText={setInputQty} placeholder={t('activityComposer.inputQuantity')} placeholderTextColor={theme.colors.textMuted} keyboardType="decimal-pad" />
+              </View>
+            ) : null}
+
+            {needsEquipment ? (
+              <View style={sheet.dynamicGroup}>
+                <Text style={sheet.fieldSubLabel}>{t('activityComposer.equipment')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheet.horizontalChoices}>
+                  {(equipmentQuery.data ?? []).map((item) => (
+                    <TouchableOpacity key={item.id} style={[sheet.choiceCard, equipmentId === item.id && sheet.choiceCardActive]} onPress={() => setEquipmentId(item.id)}>
+                      <Text style={[sheet.choiceCardTitle, equipmentId === item.id && sheet.choiceCardTitleActive]}>{item.name}</Text>
+                      <Text style={sheet.choiceCardMeta}>{item.status}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                {activity.id === 'equipment_fuel' ? <TextInput style={sheet.input} value={equipmentLitres} onChangeText={setEquipmentLitres} placeholder={t('activityComposer.litres')} placeholderTextColor={theme.colors.textMuted} keyboardType="decimal-pad" /> : null}
+              </View>
+            ) : null}
+
+            {needsBuyer ? (
+              <View style={[sheet.dynamicGroup, sheet.incomeGroup]}>
+                <Text style={sheet.fieldSubLabel}>{t('activityComposer.buyerDelivery')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sheet.horizontalChoices}>
+                  <TouchableOpacity style={[sheet.choiceCard, buyerId === '' && sheet.choiceCardActive]} onPress={() => setBuyerId('')}><Text style={[sheet.choiceCardTitle, buyerId === '' && sheet.choiceCardTitleActive]}>Walk-in</Text><Text style={sheet.choiceCardMeta}>One-time buyer</Text></TouchableOpacity>
+                  {(buyersQuery.data ?? []).map((buyer) => <TouchableOpacity key={buyer.id} style={[sheet.choiceCard, buyerId === buyer.id && sheet.choiceCardActive]} onPress={() => setBuyerId(buyer.id)}><Text style={[sheet.choiceCardTitle, buyerId === buyer.id && sheet.choiceCardTitleActive]}>{buyer.name}</Text><Text style={sheet.choiceCardMeta}>Saved buyer</Text></TouchableOpacity>)}
+                  <TouchableOpacity style={[sheet.choiceCard, buyerId === '__new__' && sheet.choiceCardActive]} onPress={() => setBuyerId('__new__')}><Text style={[sheet.choiceCardTitle, buyerId === '__new__' && sheet.choiceCardTitleActive]}>+ New buyer</Text><Text style={sheet.choiceCardMeta}>Save for later</Text></TouchableOpacity>
+                </ScrollView>
+                {buyerId === '__new__' ? <TextInput style={sheet.input} value={newBuyerName} onChangeText={setNewBuyerName} placeholder={t('activityComposer.buyerName')} placeholderTextColor={theme.colors.textMuted} /> : null}
+                <TextInput style={sheet.input} value={amountReceived} onChangeText={setAmountReceived} placeholder={t('activityComposer.amountReceived')} placeholderTextColor={theme.colors.textMuted} keyboardType="number-pad" />
+              </View>
+            ) : null}
+
+            {needsYield ? (
+              <View style={sheet.field}>
+                <Text style={sheet.fieldSubLabel}>{t(needsBuyer ? 'activityComposer.quantitySold' : 'activityComposer.yieldHarvested')}</Text>
+                <TextInput style={sheet.input} value={yieldQty} onChangeText={setYieldQty} placeholder={t('activityComposer.quantityKg')} placeholderTextColor={theme.colors.textMuted} keyboardType="decimal-pad" />
+              </View>
+            ) : null}
+
             <View style={sheet.field}>
               <Text style={sheet.fieldSubLabel}>{t('logs.when')}</Text>
-              <View style={sheet.opGrid}>
-                {[0, 1, 2].map((off) => (
-                  <TouchableOpacity
-                    key={off}
-                    style={[sheet.opPill, dateOffset === off && sheet.opPillActive]}
-                    onPress={() => setDateOffset(off)}
-                  >
-                    <Text style={[sheet.opPillText, dateOffset === off && sheet.opPillTextActive]}>
-                      {off === 0 ? t('common.today') : off === 1 ? t('common.yesterday') : t('logs.daysAgo', { n: off })}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <TouchableOpacity style={sheet.selectionRow} onPress={() => setShowDatePicker(true)}>
+                <View style={sheet.selectionIcon}><Ionicons name="calendar-outline" size={19} color={theme.colors.primary} /></View>
+                <Text style={[sheet.selectionValue, { flex: 1 }]}>{activityDate.toLocaleDateString(locale === 'sw' ? 'sw-TZ' : 'en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
+                <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+              {showDatePicker ? <DateTimePicker value={activityDate} mode="date" maximumDate={new Date()} display={Platform.OS === 'ios' ? 'inline' : 'default'} onChange={onDateChange} /> : null}
             </View>
 
             <View style={sheet.field}>
@@ -420,8 +554,8 @@ export function AddLogSheet({
               />
             </View>
 
-            <View style={sheet.field}>
-              <Text style={sheet.fieldSubLabel}>{t('logs.costOptional')}</Text>
+            {activity.hasAmount ? <View style={sheet.field}>
+              <Text style={sheet.fieldSubLabel}>{mode === 'income' ? t('activityComposer.totalAmount') : t('logs.costOptional')}</Text>
               <TextInput
                 style={sheet.input}
                 placeholder="0 TZS"
@@ -430,30 +564,62 @@ export function AddLogSheet({
                 onChangeText={setCost}
                 keyboardType="decimal-pad"
               />
-            </View>
+            </View> : null}
 
             {error ? <Text style={sheet.error}>{t(error)}</Text> : null}
           </View>
         </ScrollView>
-      </View>
-    </View>
+      </SafeAreaView>
+      </KeyboardAvoidingView>
+      <Modal visible={showActivityPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowActivityPicker(false)}>
+        <SafeAreaView style={sheet.pickerScreen} edges={['top', 'bottom']}>
+          <View style={sheet.pickerHeader}>
+            <View>
+              <Text style={sheet.pickerTitle}>{t('activityComposer.chooseActivity')}</Text>
+              <Text style={sheet.fieldHint}>{t('activityComposer.relevantFields')}</Text>
+            </View>
+            <TouchableOpacity style={sheet.pickerDone} onPress={() => setShowActivityPicker(false)}><Text style={sheet.pickerDoneText}>{t('common.done')}</Text></TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={sheet.pickerList}>
+            {activitiesForMode(mode).map((item) => {
+              const selected = item.id === activityId;
+              return (
+                <TouchableOpacity key={item.id} style={[sheet.pickerRow, selected && sheet.pickerRowActive]} onPress={() => { setActivityId(item.id); setShowActivityPicker(false); }}>
+                  <View style={sheet.selectionIcon}><Ionicons name={item.icon} size={19} color={theme.colors.primary} /></View>
+                  <Text style={[sheet.pickerRowText, selected && sheet.pickerRowTextActive]}>{t(`operations.${item.id}`)}</Text>
+                  {selected ? <Ionicons name="checkmark-circle" size={21} color={theme.colors.primary} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    </Modal>
   );
 }
 
 export function LogbookScreen() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const insets = useSafeAreaInsets();
   const [showAdd, setShowAdd] = useState(false);
+  const [filter, setFilter] = useState<LogFilter>('all');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['logbook-online'],
     queryFn: async () => {
       const activeFarmId = await farmRepository.getSelectedFarmId().catch(() => null);
       const farms = asArray<FarmRecord>(await mobileApi.listFarms().catch(() => []));
+      const activeFarm =
+        farms.find((farm) => String(farm.id) === String(activeFarmId)) ??
+        farms[0] ??
+        null;
+      const resolvedFarmId = activeFarm ? String(activeFarm.id) : activeFarmId;
+      if (!activeFarmId && resolvedFarmId) {
+        await farmRepository.setSelectedFarmId(resolvedFarmId).catch(() => undefined);
+      }
 
       const results = await Promise.all(
-        farms.map(async (farm) => {
+        (activeFarm ? [activeFarm] : []).map(async (farm) => {
           const journeys = asArray<JourneyRecord>(
             await mobileApi.listFarmJourneys(String(farm.id)).catch(() => []),
           );
@@ -467,7 +633,19 @@ export function LogbookScreen() {
               .listJourneyLogs(String(farm.id), String(activeJourney.id))
               .catch(() => []),
           );
-          return { farm, journey: activeJourney, logs };
+          const legacyDemoLogs = logs.filter(isLegacyDemoLog);
+          if (legacyDemoLogs.length > 0) {
+            await Promise.allSettled(
+              legacyDemoLogs.map((log) =>
+                mobileApi.deleteJourneyLog(
+                  String(farm.id),
+                  String(activeJourney.id),
+                  String(log.id),
+                ),
+              ),
+            );
+          }
+          return { farm, journey: activeJourney, logs: logs.filter((log) => !isLegacyDemoLog(log)) };
         }),
       );
 
@@ -488,7 +666,7 @@ export function LogbookScreen() {
             : null,
       }));
 
-      return { farmOptions, logs: allLogs, activeFarmId: activeFarmId ?? null };
+      return { farmOptions, logs: allLogs, activeFarmId: resolvedFarmId ?? null };
     },
   });
 
@@ -497,14 +675,37 @@ export function LogbookScreen() {
     await queryClient.invalidateQueries({ queryKey: ['logbook-online'] });
   }
 
+  const visibleLogs = (data?.logs ?? []).filter((log) => {
+    if (filter === 'expenses') return typeof log.cost === 'number' && log.cost > 0;
+    if (filter === 'work') return !log.cost || log.cost <= 0;
+    return true;
+  });
   return (
     <View style={s.root}>
       <ScrollView
-        contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 88 }]}
+        contentContainerStyle={[s.content, { paddingBottom: 88 }]}
+        automaticallyAdjustKeyboardInsets
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {data ? (
+          <View style={s.activityHeader}>
+            <View style={s.filterRow}>
+              {(['all', 'work', 'expenses'] as const).map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[s.filterChip, filter === item && s.filterChipActive]}
+                  onPress={() => setFilter(item)}
+                >
+                  <Text style={[s.filterChipText, filter === item && s.filterChipTextActive]}>
+                    {item === 'all' ? 'All' : item === 'work' ? 'Field work' : 'Expenses'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : null}
         {isLoading ? (
           <View style={{ gap: 12 }}>
             <SkeletonCard />
@@ -517,7 +718,7 @@ export function LogbookScreen() {
             <Text style={s.emptyTitle}>{t('logbook.couldNotLoad')}</Text>
             <Text style={s.emptyText}>{t('logbook.checkConnection')}</Text>
           </View>
-        ) : !data?.logs.length ? (
+        ) : !visibleLogs.length ? (
           <View style={s.emptyState}>
             <Ionicons name="document-text-outline" size={40} color={theme.colors.textMuted} />
             <Text style={s.emptyTitle}>{t('logbook.noNotesYet')}</Text>
@@ -525,9 +726,9 @@ export function LogbookScreen() {
           </View>
         ) : (
           <View style={s.logList}>
-            <Text style={s.listLabel}>{t('logbook.recentNotes')} · {data.logs.length}</Text>
-            {data.logs.map((log) => {
-              const opIcon = OP_ICONS[log.operation_type as OperationType] ?? 'document-text-outline';
+            <Text style={s.listLabel}>{t('logbook.recentNotes')} · {visibleLogs.length}</Text>
+            {visibleLogs.map((log) => {
+              const opIcon = getActivity(log.operation_type.toLowerCase().replace(/\s+/g, '_')).icon;
               const thumb = noteThumbUri(log);
               return (
                 <TouchableOpacity
@@ -548,10 +749,20 @@ export function LogbookScreen() {
                       <Ionicons name={opIcon} size={26} color={theme.colors.primary} />
                     </View>
                   )}
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={s.noteTime}>{fmtDateTime(log.updated_at || log.date)}</Text>
+                  <View style={{ flex: 1, gap: 5 }}>
+                    <View style={s.noteMetaRow}>
+                      <View style={s.operationBadge}>
+                        <Text style={s.operationBadgeText}>{log.operation_type || 'Activity'}</Text>
+                      </View>
+                      {typeof log.cost === 'number' && log.cost > 0 ? (
+                        <Text style={s.noteCost}>KES {Math.round(log.cost).toLocaleString()}</Text>
+                      ) : null}
+                    </View>
                     <Text style={s.noteText} numberOfLines={2}>
                       {log.notes?.trim() || log.operation_type}
+                    </Text>
+                    <Text style={s.noteTime} numberOfLines={1}>
+                      {log.farmName} · {fmtDateTime(log.updated_at || log.date)}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
@@ -563,7 +774,7 @@ export function LogbookScreen() {
       </ScrollView>
 
       <TouchableOpacity
-        style={[s.fab, { bottom: insets.bottom + 24 }]}
+        style={[s.fab, { bottom: 24 }]}
         onPress={() => setShowAdd(true)}
         activeOpacity={0.85}
       >
@@ -574,6 +785,7 @@ export function LogbookScreen() {
         <AddLogSheet
           farmOptions={data.farmOptions}
           defaultFarmId={data.activeFarmId}
+          lockedFarmId={data.activeFarmId ?? undefined}
           onClose={() => setShowAdd(false)}
           onSaved={() => void onSaved()}
         />
@@ -589,7 +801,35 @@ const s = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 12,
+    gap: 18,
+  },
+  activityHeader: {
+    gap: 14,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  filterChipActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.textMuted,
+  },
+  filterChipTextActive: {
+    color: '#fff',
   },
   centerState: {
     alignItems: 'center',
@@ -655,14 +895,38 @@ const s = StyleSheet.create({
     borderColor: '#d8ead2',
   },
   noteTime: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.text,
+    fontSize: 11,
+    fontWeight: '500',
+    color: theme.colors.textMuted,
   },
   noteText: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '600',
     lineHeight: 19,
-    color: theme.colors.textMuted,
+    color: theme.colors.text,
+  },
+  noteMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  operationBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: theme.colors.primary + '12',
+  },
+  operationBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: theme.colors.primary,
+  },
+  noteCost: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: theme.colors.text,
   },
   logCard: {
     flexDirection: 'row',
@@ -733,15 +997,14 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: theme.colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    elevation: 3,
   },
 });
 
 const sheet = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 50, backgroundColor: theme.colors.background },
   panel: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -830,9 +1093,38 @@ const sheet = StyleSheet.create({
 
   body: { paddingHorizontal: 16, paddingBottom: 10, gap: 16 },
   field: { gap: 7 },
+  dynamicGroup: { gap: 9, borderRadius: 18, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, padding: 12 },
+  incomeGroup: { borderColor: theme.colors.success + '55', backgroundColor: theme.colors.success + '08' },
+  emptyHint: { fontSize: 12, lineHeight: 17, color: theme.colors.textMuted },
   fieldLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, color: theme.colors.textMuted },
   fieldHint: { fontSize: 12, color: theme.colors.textMuted },
   fieldSubLabel: { fontSize: 12, fontWeight: '600', color: theme.colors.text },
+
+  modeControl: { flexDirection: 'row', padding: 3, borderRadius: 13, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border },
+  modeOption: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  modeOptionActive: { backgroundColor: theme.colors.surface },
+  modeOptionText: { fontSize: 12, fontWeight: '700', color: theme.colors.textMuted },
+  modeOptionTextActive: { color: theme.colors.primary },
+  selectionRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+  selectionIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary + '12' },
+  selectionLabel: { fontSize: 10, fontWeight: '700', color: theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  selectionValue: { fontSize: 14, fontWeight: '700', color: theme.colors.text },
+  horizontalChoices: { gap: 8, paddingRight: 8 },
+  choiceCard: { minWidth: 126, maxWidth: 180, minHeight: 58, justifyContent: 'center', gap: 2, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background },
+  choiceCardActive: { borderColor: theme.colors.primary, backgroundColor: theme.colors.primary + '0c' },
+  choiceCardTitle: { fontSize: 13, fontWeight: '700', color: theme.colors.text },
+  choiceCardTitleActive: { color: theme.colors.primary },
+  choiceCardMeta: { fontSize: 10, color: theme.colors.textMuted },
+  pickerScreen: { flex: 1, backgroundColor: theme.colors.background },
+  pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
+  pickerTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.text },
+  pickerDone: { minHeight: 38, justifyContent: 'center', paddingHorizontal: 15, borderRadius: 19, backgroundColor: theme.colors.primary },
+  pickerDoneText: { fontSize: 13, fontWeight: '800', color: '#fff' },
+  pickerList: { padding: 16, gap: 8 },
+  pickerRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+  pickerRowActive: { borderColor: theme.colors.primary },
+  pickerRowText: { flex: 1, fontSize: 15, fontWeight: '700', color: theme.colors.text },
+  pickerRowTextActive: { color: theme.colors.primary },
 
   imageActionRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
   imageActionButton: {

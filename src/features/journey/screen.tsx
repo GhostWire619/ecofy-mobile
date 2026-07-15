@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -14,7 +14,7 @@ import { TaskActionsSheet } from '@/components/tasks/task-actions-sheet';
 import { TaskCompletionSheet } from '@/components/tasks/task-completion-sheet';
 import { EmptyState } from '@/components/state/empty-state';
 import { SkeletonCard } from '@/components/state/skeleton';
-import { decodeInstructions, journeyRepository } from '@/lib/db/repositories';
+import { decodeInstructions, farmRepository, journeyRepository } from '@/lib/db/repositories';
 import type { AchievementBadge } from '@/lib/domain/types';
 import { useTaskActions } from '@/lib/hooks/use-task-actions';
 import { useTaskCompletion } from '@/lib/hooks/use-task-completion';
@@ -33,7 +33,10 @@ export function JourneyScreen() {
   const { data, refetch, isRefetching, isLoading } = useQuery({
     queryKey: ['journey-screen'],
     queryFn: async () => {
-      const journey = await journeyRepository.getActiveJourney();
+      const activeFarmId = await farmRepository.getSelectedFarmId();
+      const journey = activeFarmId
+        ? await journeyRepository.getActiveJourneyForFarm(activeFarmId)
+        : await journeyRepository.getActiveJourney();
       if (!journey) return null;
       const [stages, milestones, tasks] = await Promise.all([
         journeyRepository.listStages(journey.id),
@@ -55,7 +58,11 @@ export function JourneyScreen() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const { data: journeys = [] } = useQuery({
     queryKey: ['journeys-list'],
-    queryFn: () => journeyRepository.listJourneys(),
+    queryFn: async () => {
+      const activeFarmId = await farmRepository.getSelectedFarmId();
+      const all = await journeyRepository.listJourneys();
+      return activeFarmId ? all.filter((journey) => String(journey.farm_id) === String(activeFarmId)) : all;
+    },
   });
 
   async function selectJourney(journeyId: string) {
@@ -499,7 +506,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.94)',
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
     paddingHorizontal: theme.spacing.lg,
@@ -566,7 +573,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'rgba(255, 253, 247, 0.86)',
     padding: 12,
   },
   milestoneRowActive: {

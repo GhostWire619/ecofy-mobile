@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { format, parseISO } from 'date-fns';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';

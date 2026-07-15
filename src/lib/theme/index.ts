@@ -42,7 +42,7 @@ export const theme = {
       shadowOffset: { width: 0, height: 8 },
     },
     android: {
-      elevation: 4,
+      elevation: 1,
     },
     default: {},
   }),

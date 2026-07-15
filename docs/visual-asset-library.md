@@ -12,11 +12,11 @@
 
 | Asset | Screen use | Composition | Target | Status |
 | --- | --- | --- | --- | --- |
-| `auth/farm-auth-hero.png` | Login and registration | Portrait photo with calm lower overlay area | 864 x 1821 or larger | Ready |
-| `onboarding/welcome-farm.png` | Welcome/language selection | Wide farm landscape with people and crops | 1823 x 863 | Ready |
-| `onboarding/season-plan.png` | Intro: season planning | Farmer reviewing the season in the field | 1254 x 1254 | Ready |
-| `onboarding/crop-scan.png` | Intro: pest and disease scan | Phone camera inspecting a real crop leaf | 1254 x 1254 | Ready |
-| `onboarding/ai-guidance.png` | Intro: local-language guidance | Farmer applying practical phone guidance | 1254 x 1254 | Ready |
+| `auth/farm-auth-hero.webp` | Login and registration | Portrait photo with calm lower overlay area | 864 x 1821 or larger | Ready |
+| `onboarding/welcome-farm.webp` | Welcome/language selection | Wide farm landscape with people and crops | 1823 x 863 | Ready |
+| `onboarding/season-plan.webp` | Intro: season planning | Farmer reviewing the season in the field | 1254 x 1254 | Ready |
+| `onboarding/crop-scan.webp` | Intro: pest and disease scan | Phone camera inspecting a real crop leaf | 1254 x 1254 | Ready |
+| `onboarding/ai-guidance.webp` | Intro: local-language guidance | Farmer applying practical phone guidance | 1254 x 1254 | Ready |
 | `illustrations/no-farms.png` | Empty farms state | Transparent dimensional field marker scene | 1254 x 1254 | Ready |
 | `illustrations/no-notes.png` | Empty notes state | Transparent dimensional field notebook scene | 1254 x 1254 | Ready |
 | `illustrations/offline-monitoring.png` | Monitoring offline state | Transparent satellite/field signal scene | 1254 x 1254 | Ready |

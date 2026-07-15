@@ -11,7 +11,7 @@ import { useAuth } from '@/lib/auth/provider';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
-const AUTH_HERO = require('../../../assets/images/auth/farm-auth-hero.png');
+const AUTH_HERO = require('../../../assets/images/auth/farm-auth-hero.webp');
 
 export default function LoginScreen() {
   const { t } = useI18n();

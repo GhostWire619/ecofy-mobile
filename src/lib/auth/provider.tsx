@@ -1,6 +1,5 @@
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -18,17 +17,18 @@ import {
   persistTokens,
 } from '@/lib/api/client';
 import { bootstrapCurrentUser } from '@/lib/bootstrap/bootstrap';
-import type { AuthState, UserProfile } from '@/lib/domain/types';
+import type { AuthState, SignupRole, UserProfile } from '@/lib/domain/types';
 import { clearLocalUserData, saveUserProfile, seedBootstrapDefaults, sessionRepository } from '@/lib/db/repositories';
 
 type AuthContextValue = AuthState & {
   onboardingComplete: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: (idToken: string, preferredLanguage?: 'en' | 'sw') => Promise<void>;
+  loginWithGoogle: (idToken: string, preferredLanguage?: 'en' | 'sw', role?: SignupRole) => Promise<void>;
   loginWithApple: (
     identityToken: string,
     fullName?: string | null,
     preferredLanguage?: 'en' | 'sw',
+    role?: SignupRole,
   ) => Promise<void>;
   register: (input: {
     email: string;
@@ -37,6 +37,7 @@ type AuthContextValue = AuthState & {
     phone_number?: string;
     location?: string;
     preferred_language: 'en' | 'sw';
+    role: SignupRole;
   }) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
@@ -48,9 +49,10 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function hydrateBootstrap(user: UserProfile) {
   try {
-    await bootstrapCurrentUser();
+    return await bootstrapCurrentUser();
   } catch {
     await saveUserProfile(user);
+    return null;
   }
 }
 
@@ -70,20 +72,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           getStoredTokens(),
           getStoredUser(),
         ]);
+        if (tokens && storedUser) {
+          await hydrateBootstrap(storedUser);
+        }
         const session = await sessionRepository.getSession(storedUser?.id);
-
         setOnboardingComplete(Boolean(session?.onboarding_complete));
         setAuthState({
           isReady: true,
           isAuthenticated: Boolean(tokens && storedUser),
           user: storedUser,
         });
-
-        if (tokens && storedUser) {
-          startTransition(() => {
-            void hydrateBootstrap(storedUser);
-          });
-        }
       } catch {
         setAuthState({ isReady: true, isAuthenticated: false, user: null });
       }
@@ -130,16 +128,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const loginWithGoogle = useCallback(
-    async (idToken: string, preferredLanguage: 'en' | 'sw' = 'en') => {
-      const response = await authApi.googleSignIn(idToken, preferredLanguage);
+    async (idToken: string, preferredLanguage: 'en' | 'sw' = 'en', role?: SignupRole) => {
+      const response = await authApi.googleSignIn(idToken, preferredLanguage, role);
       await completeSignIn(response);
     },
     [completeSignIn],
   );
 
   const loginWithApple = useCallback(
-    async (identityToken: string, fullName?: string | null, preferredLanguage: 'en' | 'sw' = 'en') => {
-      const response = await authApi.appleSignIn(identityToken, fullName, preferredLanguage);
+    async (identityToken: string, fullName?: string | null, preferredLanguage: 'en' | 'sw' = 'en', role?: SignupRole) => {
+      const response = await authApi.appleSignIn(identityToken, fullName, preferredLanguage, role);
       await completeSignIn(response);
     },
     [completeSignIn],
@@ -153,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone_number?: string;
       location?: string;
       preferred_language: 'en' | 'sw';
+      role: SignupRole;
     }) => {
       await authApi.register(input);
       await login(input.email, input.password);

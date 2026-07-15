@@ -27,6 +27,7 @@ import type {
   RemoteSensingSummary,
   RemoteSensingTimeSeries,
   StageRecord,
+  SignupRole,
   TaskRecord,
   UserProfile,
   WeatherCacheRecord,
@@ -167,6 +168,7 @@ export const authApi = {
     phone_number?: string;
     location?: string;
     preferred_language: 'en' | 'sw';
+    role: SignupRole;
   }) {
     return apiRequest<UserProfile>('/api/auth/register', {
       method: 'POST',
@@ -178,13 +180,18 @@ export const authApi = {
       auth: false,
     });
   },
-  async googleSignIn(idToken: string, preferredLanguage: 'en' | 'sw' = 'en') {
+  async googleSignIn(
+    idToken: string,
+    preferredLanguage: 'en' | 'sw' = 'en',
+    role?: SignupRole,
+  ) {
     return apiRequest<AuthResponse>('/api/auth/google', {
       method: 'POST',
       body: JSON.stringify({
         id_token: idToken,
         client_app: 'ecofy-mobile',
         preferred_language: preferredLanguage,
+        role,
       }),
       auth: false,
     });
@@ -193,6 +200,7 @@ export const authApi = {
     identityToken: string,
     fullName?: string | null,
     preferredLanguage: 'en' | 'sw' = 'en',
+    role?: SignupRole,
   ) {
     return apiRequest<AuthResponse>('/api/auth/apple', {
       method: 'POST',
@@ -201,6 +209,7 @@ export const authApi = {
         full_name: fullName ?? undefined,
         client_app: 'ecofy-mobile',
         preferred_language: preferredLanguage,
+        role,
       }),
       auth: false,
     });
@@ -349,6 +358,12 @@ export const mobileApi = {
             String(log.journey_id ?? '') === String(journeyId),
         ),
     );
+  },
+  deleteJourneyLog(farmId: string, journeyId: string, logId: string) {
+    return apiRequest(`/api/farms/${farmId}/journeys/${journeyId}/logs/${logId}`, {
+      method: 'DELETE',
+      auth: true,
+    });
   },
   registerDevice(payload: {
     installation_id: string;

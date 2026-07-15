@@ -551,6 +551,14 @@ export const journeyRepository = {
     await prefsRepository.set(SELECTED_JOURNEY_KEY, journeyId);
   },
   async getActiveJourneyForFarm(farmId: string) {
+    const selectedId = await prefsRepository.get(SELECTED_JOURNEY_KEY);
+    if (selectedId) {
+      const selected = await getFirstRow<JourneyRecord>(
+        'SELECT * FROM journeys WHERE id = ? AND farm_id = ? AND deleted_at IS NULL LIMIT 1;',
+        [selectedId, farmId],
+      );
+      if (selected) return selected;
+    }
     return getFirstRow<JourneyRecord>(
       "SELECT * FROM journeys WHERE farm_id = ? AND deleted_at IS NULL AND status IN ('active', 'planned') ORDER BY planting_date DESC LIMIT 1;",
       [farmId],

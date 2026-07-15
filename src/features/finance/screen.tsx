@@ -1,11 +1,13 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { useMemo, useState } from 'react';
 import {
   Alert,
   Image,
-  Modal,
+  KeyboardAvoidingView,
+  Modal as NativeModal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +15,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  type ModalProps,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -29,6 +32,16 @@ import { catLabel, fmtDate, fmtMoney, todayIso } from '@/features/finance/helper
 import { toAbsoluteUrl } from '@/lib/utils/url';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
+
+function Modal({ children, ...props }: ModalProps) {
+  return (
+    <NativeModal {...props}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {children}
+      </KeyboardAvoidingView>
+    </NativeModal>
+  );
+}
 
 type FinanceTab = 'overview' | 'records' | 'owed' | 'loans' | 'budget';
 
@@ -822,10 +835,10 @@ export function FinanceScreen() {
 
 const s = StyleSheet.create({
   content: { gap: 12, paddingTop: 6, paddingBottom: 24 },
-  farmBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: theme.colors.surface, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border, paddingHorizontal: 14, paddingVertical: 9 },
+  farmBar: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(255, 253, 247, 0.84)', borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border, paddingHorizontal: 14, paddingVertical: 9 },
   farmName: { flex: 1, fontSize: 14, fontWeight: '700', color: theme.colors.text },
   tabRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radius.pill, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: 'rgba(255, 253, 247, 0.84)' },
   tabActive: { borderColor: theme.colors.primary, backgroundColor: '#eaf8ef' },
   tabText: { fontSize: 13, fontWeight: '600', color: theme.colors.textMuted },
   tabTextActive: { color: theme.colors.primary },
@@ -858,13 +871,13 @@ const s = StyleSheet.create({
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: theme.colors.primary, borderRadius: theme.radius.pill, paddingVertical: 12 },
   addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
-  recordRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.colors.border, padding: 12 },
+  recordRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(255, 253, 247, 0.86)', borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.colors.border, padding: 12 },
   recordIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   recordDesc: { fontSize: 14, fontWeight: '600', color: theme.colors.text },
   recordAmt: { fontSize: 14, fontWeight: '800' },
 
   itemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
-  addItemBox: { marginTop: 12, gap: 8, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+  addItemBox: { marginTop: 12, gap: 8, padding: 12, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: 'rgba(255, 253, 247, 0.86)' },
 
   fig: { fontSize: 14, fontWeight: '800', color: theme.colors.text },
   statusPill: { backgroundColor: theme.colors.surfaceMuted, borderRadius: theme.radius.pill, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, borderColor: theme.colors.border },
@@ -876,11 +889,11 @@ const s = StyleSheet.create({
 
   receiptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
   receiptThumb: { width: 44, height: 44, borderRadius: 8, backgroundColor: theme.colors.surfaceMuted },
-  receiptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.pill, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: theme.colors.surface },
+  receiptBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.pill, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255, 253, 247, 0.86)' },
   receiptBtnText: { fontSize: 13, fontWeight: '600', color: theme.colors.text },
 
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', backgroundColor: theme.colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10 },
+  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', backgroundColor: 'rgba(248, 247, 239, 0.96)', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10 },
   handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: theme.colors.border, marginBottom: 6 },
   sheetTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text },
   fieldLabel: { fontSize: 12, fontWeight: '700', color: theme.colors.textMuted, marginTop: 10 },
@@ -903,7 +916,7 @@ const s = StyleSheet.create({
   error: { color: theme.colors.danger, fontSize: 13, marginTop: 6 },
 
   modalOverlay: { flex: 1, backgroundColor: theme.colors.overlay },
-  switcher: { position: 'absolute', left: 20, right: 20, top: '30%', backgroundColor: theme.colors.surface, borderRadius: 20, padding: 16, gap: 4 },
+  switcher: { position: 'absolute', left: 20, right: 20, top: '30%', backgroundColor: 'rgba(255, 253, 247, 0.94)', borderRadius: 20, padding: 16, gap: 4 },
   switcherItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
   switcherText: { fontSize: 15, color: theme.colors.text },
   switcherTextActive: { color: theme.colors.primary, fontWeight: '700' },

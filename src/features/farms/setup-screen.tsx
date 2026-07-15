@@ -90,7 +90,7 @@ const PLANTING_OFFSET_DAYS: Record<PlantingChoice, number> = {
 
 export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
   const queryClient = useQueryClient();
-  const { markOnboardingComplete } = useAuth();
+  const { markOnboardingComplete, refreshBootstrap } = useAuth();
   const { locale, t } = useI18n();
   const sw = locale === 'sw';
 
@@ -210,6 +210,14 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
     setLoading(true);
     setError(null);
     try {
+      const existingFarms = await mobileApi.listFarms().catch(() => farmRepository.listFarms());
+      if (existingFarms.length > 0) {
+        await refreshBootstrap().catch(() => undefined);
+        await markOnboardingComplete();
+        router.replace('/(tabs)/home' as never);
+        return;
+      }
+
       const sizeHectares = Number(form.sizeAcres) * HECTARES_PER_ACRE;
 
       if (!form.name.trim()) throw new Error('setup.errEnterName');
@@ -651,7 +659,7 @@ const s = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.96)',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: 'hidden',
@@ -842,7 +850,7 @@ const s = StyleSheet.create({
   },
   successCard: {
     width: '100%',
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.96)',
     borderRadius: 20,
     padding: theme.spacing.xl,
     gap: theme.spacing.md,
@@ -863,7 +871,7 @@ const s = StyleSheet.create({
   },
   mapHelpCard: {
     width: '100%',
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.96)',
     borderRadius: 20,
     padding: theme.spacing.xl,
     gap: 14,

@@ -28,19 +28,19 @@ type Slide = {
 
 const SLIDES: Slide[] = [
   {
-    image: require('../../assets/images/onboarding/season-plan.png'),
+    image: require('../../assets/images/onboarding/season-plan.webp'),
     kicker: '01 · PLAN',
     en: { title: 'Your season, planned', body: 'Know exactly what to do each week — from planting to harvest.' },
     sw: { title: 'Msimu wako, umepangwa', body: 'Jua la kufanya kila wiki — kupanda hadi kuvuna.' },
   },
   {
-    image: require('../../assets/images/onboarding/crop-scan.png'),
+    image: require('../../assets/images/onboarding/crop-scan.webp'),
     kicker: '02 · SPOT',
     en: { title: 'Spot problems early', body: 'Snap a photo to identify pests and diseases — and what to do about them.' },
     sw: { title: 'Gundua matatizo mapema', body: 'Piga picha kutambua wadudu na magonjwa — na la kufanya.' },
   },
   {
-    image: require('../../assets/images/onboarding/ai-guidance.png'),
+    image: require('../../assets/images/onboarding/ai-guidance.webp'),
     kicker: '03 · ACT',
     en: { title: 'Help, anytime', body: 'Ask Ecofy AI in your language, track your progress, and earn rewards.' },
     sw: { title: 'Msaada, wakati wowote', body: 'Uliza Ecofy AI kwa lugha yako, fuatilia maendeleo, na pata zawadi.' },
@@ -55,8 +55,8 @@ export default function IntroScreen() {
   const [index, setIndex] = useState(0);
   const last = index === SLIDES.length - 1;
 
-  async function finish(target: '/(auth)/register' | '/(auth)/login') {
-    await prefsRepository.set(INTRO_SEEN_KEY, '1').catch(() => undefined);
+  function finish(target: '/(auth)/register' | '/(auth)/login') {
+    void prefsRepository.set(INTRO_SEEN_KEY, '1').catch(() => undefined);
     router.replace(target);
   }
 
@@ -67,7 +67,7 @@ export default function IntroScreen() {
 
   function onNext() {
     if (last) {
-      void finish('/(auth)/register');
+      finish('/(auth)/register');
       return;
     }
     scrollRef.current?.scrollTo({ x: width * (index + 1), animated: true });
@@ -85,7 +85,7 @@ export default function IntroScreen() {
           />
           <Text style={styles.brand}>ECOFY</Text>
         </View>
-        <Pressable onPress={() => void finish('/(auth)/register')} hitSlop={8}>
+        <Pressable onPress={() => finish('/(auth)/register')} hitSlop={8}>
           <Text style={styles.skip}>{sw ? 'Ruka' : 'Skip'}</Text>
         </Pressable>
       </View>
@@ -140,7 +140,14 @@ export default function IntroScreen() {
           onPress={onNext}
           style={styles.nextButton}
         />
-        <Pressable onPress={() => void finish('/(auth)/login')} hitSlop={8} style={styles.signInRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={sw ? 'Ingia kwenye akaunti yako' : 'Sign in to your account'}
+          android_ripple={{ color: theme.colors.primary + '18', borderless: false }}
+          onPress={() => finish('/(auth)/login')}
+          hitSlop={8}
+          style={styles.signInRow}
+        >
           <Text style={styles.signInText}>
             {sw ? 'Una akaunti tayari? Ingia' : 'Already have an account? Sign in'}
           </Text>
@@ -151,7 +158,7 @@ export default function IntroScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.background },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
   topBar: {
     minHeight: 50,
@@ -220,6 +227,6 @@ const styles = StyleSheet.create({
   dotActive: { backgroundColor: theme.colors.primary, width: 20 },
   count: { color: theme.colors.textMuted, fontSize: 10, fontWeight: '700', fontVariant: ['tabular-nums'] },
   nextButton: { minHeight: 46, borderRadius: 15, borderCurve: 'continuous' },
-  signInRow: { alignItems: 'center', paddingVertical: 4 },
+  signInRow: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
   signInText: { fontSize: 12, fontWeight: '700', color: theme.colors.primary },
 });

@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -14,11 +14,11 @@ type MoreLink = {
 };
 
 const LINKS: MoreLink[] = [
-  { icon: 'document-text-outline', labelKey: 'tabs.notes', descKey: 'more.notesDesc', route: '/(tabs)/logbook' },
+  { icon: 'leaf-outline', labelKey: 'more.farms', descKey: 'more.farmsDesc', route: '/(tabs)/farms' },
+  { icon: 'cash-outline', labelKey: 'tabs.finance', descKey: 'more.financeDesc', route: '/(tabs)/finance' },
   { icon: 'stats-chart-outline', labelKey: 'tabs.prices', descKey: 'more.pricesDesc', route: '/(tabs)/market' },
   { icon: 'compass-outline', labelKey: 'tabs.explore', descKey: 'more.exploreDesc', route: '/(tabs)/explore' },
   { icon: 'scan-outline', labelKey: 'today.scanCrop', descKey: 'more.scanDesc', route: '/scan' },
-  { icon: 'sparkles-outline', labelKey: 'today.askAi', descKey: 'more.assistantDesc', route: '/assistant' },
   { icon: 'settings-outline', labelKey: 'more.settings', descKey: 'more.settingsDesc', route: '/settings' },
 ];
 

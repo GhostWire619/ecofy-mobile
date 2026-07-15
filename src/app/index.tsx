@@ -9,7 +9,7 @@ export default function IndexScreen() {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: theme.colors.background,
+        backgroundColor: 'transparent',
       }}
     >
       <ActivityIndicator color={theme.colors.primary} />

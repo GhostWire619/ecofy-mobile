@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,7 +21,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ApiError } from '@/lib/api/client';
 import { mobileApi } from '@/lib/api/mobile';
-import { assistantRepository, journeyRepository } from '@/lib/db/repositories';
+import { assistantRepository, farmRepository, journeyRepository } from '@/lib/db/repositories';
 import type { AssistantMessageRecord } from '@/lib/domain/types';
 import { useAuth } from '@/lib/auth/provider';
 import { theme } from '@/lib/theme';
@@ -103,7 +103,7 @@ function formatWhen(value: string | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function AssistantScreen() {
+export function AssistantScreen({ showBack = true }: { showBack?: boolean }) {
   const { user } = useAuth();
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -138,7 +138,12 @@ export function AssistantScreen() {
 
   const { data: journey } = useQuery({
     queryKey: ['assistant-journey'],
-    queryFn: () => journeyRepository.getActiveJourney(),
+    queryFn: async () => {
+      const activeFarmId = await farmRepository.getSelectedFarmId();
+      return activeFarmId
+        ? journeyRepository.getActiveJourneyForFarm(activeFarmId)
+        : journeyRepository.getActiveJourney();
+    },
   });
 
   // Hydrate on open: load the most recent server conversation; fall back to the
@@ -340,9 +345,11 @@ export function AssistantScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={26} color={theme.colors.text} />
-        </TouchableOpacity>
+        {showBack ? (
+          <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={26} color={theme.colors.text} />
+          </TouchableOpacity>
+        ) : <View style={styles.backBtn} />}
         <View style={styles.avatar}>
           <Ionicons name="sparkles" size={18} color={theme.colors.primary} />
         </View>
@@ -360,7 +367,7 @@ export function AssistantScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.flex, { paddingBottom: keyboardHeight > 0 ? keyboardHeight : insets.bottom }]}>
+      <View style={[styles.flex, { paddingBottom: keyboardHeight > 0 ? keyboardHeight : showBack ? insets.bottom : 0 }]}>
         <ScrollView
           ref={scrollRef}
           style={styles.flex}
@@ -523,7 +530,7 @@ function TypingBubble() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: theme.colors.background },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
 
   header: {
@@ -645,7 +652,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     maxHeight: '70%',
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'rgba(248, 247, 239, 0.96)',
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
     paddingBottom: theme.spacing.xl,

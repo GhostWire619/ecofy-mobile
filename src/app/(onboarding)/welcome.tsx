@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -37,7 +37,7 @@ export default function WelcomeScreen() {
     <Screen edges={['top', 'bottom']} contentContainerStyle={styles.content}>
       <View style={styles.hero}>
         <Image
-          source={require('../../../assets/images/onboarding/welcome-farm.png')}
+          source={require('../../../assets/images/onboarding/welcome-farm.webp')}
           style={styles.heroImage}
           contentFit="cover"
           transition={180}

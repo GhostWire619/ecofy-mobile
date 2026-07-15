@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image, type ImageSource } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -46,14 +46,6 @@ const WEATHER_IMAGES = {
   rain: require('../../../assets/images/weather/rain.png'),
   storm: require('../../../assets/images/weather/storm.png'),
   fog: require('../../../assets/images/weather/fog.png'),
-} satisfies Record<string, ImageSource>;
-
-const TODAY_IMAGES = {
-  background: require('../../../assets/images/today/home-field-background.png'),
-  scan: require('../../../assets/images/today/quick-scan.png'),
-  note: require('../../../assets/images/today/quick-note.png'),
-  journey: require('../../../assets/images/today/quick-journey.png'),
-  ai: require('../../../assets/images/today/quick-ai.png'),
 } satisfies Record<string, ImageSource>;
 
 function greetingKey() {
@@ -116,11 +108,7 @@ function WeatherWeekWidget({
       <View style={styles.weatherHeader}>
         <View style={styles.weatherTitleWrap}>
           <View style={styles.weatherTitleIcon}>
-            <Image
-              source={weatherImage(current?.conditions, nightNow)}
-              style={styles.weatherTitleImage}
-              contentFit="contain"
-            />
+            <Image source={weatherImage(current?.conditions, nightNow)} style={styles.weatherTitleImage} contentFit="contain" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.weatherTitle}>{t('today.weatherThisWeek')}</Text>
@@ -203,11 +191,7 @@ function WeatherWeekWidget({
                   <Text style={[styles.forecastDayLabel, index === 0 && styles.forecastToday]}>
                     {index === 0 ? t('common.today') : dayLabel(day.date, index)}
                   </Text>
-                  <Image
-                    source={weatherImage(iconConditions, index === 0 && nightNow)}
-                    style={styles.forecastWeatherImage}
-                    contentFit="contain"
-                  />
+                  <Image source={weatherImage(iconConditions, index === 0 && nightNow)} style={styles.forecastWeatherImage} contentFit="contain" />
                   <Text style={styles.forecastTemperature}>
                     {roundedTemperature(day.temperature_high)}
                   </Text>
@@ -278,14 +262,15 @@ function topTask(tasks: TaskRecord[]): TaskRecord | null {
 
 const QUICK_ACTIONS: {
   icon: keyof typeof Ionicons.glyphMap;
-  image: ImageSource;
   labelKey: string;
   route: string;
 }[] = [
-  { icon: 'scan-outline', image: TODAY_IMAGES.scan, labelKey: 'today.scanCrop', route: '/scan' },
-  { icon: 'document-text-outline', image: TODAY_IMAGES.note, labelKey: 'today.addNote', route: '/(tabs)/logbook' },
-  { icon: 'trophy-outline', image: TODAY_IMAGES.journey, labelKey: 'today.myJourney', route: '/(tabs)/journey' },
-  { icon: 'sparkles-outline', image: TODAY_IMAGES.ai, labelKey: 'today.askAi', route: '/assistant' },
+  { icon: 'scan-outline', labelKey: 'today.scanCrop', route: '/scan' },
+  { icon: 'document-text-outline', labelKey: 'today.addNote', route: '/(tabs)/logbook' },
+  { icon: 'map-outline', labelKey: 'today.viewMap', route: '__farm_map__' },
+  { icon: 'people-outline', labelKey: 'today.findAgronomist', route: '/agronomists' },
+  { icon: 'trending-up-outline', labelKey: 'today.myJourney', route: '/(tabs)/journey' },
+  { icon: 'chatbubble-ellipses-outline', labelKey: 'today.askAi', route: '/assistant' },
 ];
 
 export function TodayScreen() {
@@ -424,8 +409,6 @@ export function TodayScreen() {
 
   return (
     <View style={styles.root}>
-    <Image source={TODAY_IMAGES.background} style={styles.backgroundImage} contentFit="cover" />
-    <View style={styles.backgroundVeil} />
     <Screen
       safeAreaStyle={styles.transparentSurface}
       style={styles.transparentSurface}
@@ -461,13 +444,10 @@ export function TodayScreen() {
               key={a.labelKey}
               style={styles.quickItem}
               activeOpacity={0.75}
-              onPress={() => router.push(a.route as never)}
+              onPress={() => router.push((a.route === '__farm_map__' ? (activeFarm?.id ? `/farms-map/${activeFarm.id}` : '/(tabs)/farms') : a.route) as never)}
             >
-              <View style={styles.quickArtShell}>
-                <Image source={a.image} style={styles.quickArt} contentFit="contain" />
-                <View style={styles.quickMiniBadge}>
-                  <Ionicons name={a.icon} size={10} color={theme.colors.primaryDark} />
-                </View>
+              <View style={styles.quickIconShell}>
+                <Ionicons name={a.icon} size={20} color={theme.colors.primary} />
               </View>
               <Text style={styles.quickLabel} numberOfLines={1}>{t(a.labelKey)}</Text>
             </TouchableOpacity>
@@ -604,7 +584,7 @@ export function TodayScreen() {
 
       {/* ── Smart nudges (tick-engine + advisories, all journeys) ── */}
       <Section>
-        <SmartNudges title={t('today.smartNudges')} />
+        {journey ? <SmartNudges journeyId={journey.id} title={t('today.smartNudges')} /> : null}
       </Section>
 
       <AchievementModal badge={celebrating} onClose={() => setCelebrating(null)} />
@@ -626,18 +606,10 @@ export function TodayScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f5f4ec',
+    backgroundColor: 'transparent',
   },
   transparentSurface: {
     backgroundColor: 'transparent',
-  },
-  backgroundImage: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.78,
-  },
-  backgroundVeil: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(248, 247, 239, 0.58)',
   },
   content: {
     gap: 12,
@@ -710,9 +682,9 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
   },
   forecastDay: { flex: 1, minWidth: 0, alignItems: 'center', gap: 3 },
+  forecastWeatherImage: { width: 28, height: 28 },
   forecastDayLabel: { fontSize: 9, fontWeight: '700', color: theme.colors.textMuted },
   forecastToday: { color: theme.colors.primary },
-  forecastWeatherImage: { width: 28, height: 28 },
   forecastTemperature: {
     fontSize: 12,
     fontWeight: '800',
@@ -794,53 +766,38 @@ const styles = StyleSheet.create({
   moreLink: { color: theme.colors.primary, fontWeight: '700', fontSize: 13, marginTop: 8, textAlign: 'center' },
   snoozeLink: { color: theme.colors.textMuted, fontWeight: '600', fontSize: 13, marginTop: 8, textAlign: 'center' },
 
-  quickSection: { alignItems: 'center', gap: 8, paddingVertical: 2 },
+  quickSection: { gap: 8, paddingVertical: 2 },
   quickSectionTitle: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     color: theme.colors.textMuted,
   },
   quickGrid: {
     width: '100%',
     flexDirection: 'row',
-    justifyContent: 'center',
+    flexWrap: 'wrap',
     gap: 8,
   },
   quickItem: {
-    width: 76,
-    alignItems: 'center',
-    gap: 5,
-  },
-  quickArtShell: {
-    width: 64,
-    height: 58,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 250, 0.86)',
+    flexBasis: '30%',
+    flexGrow: 1,
+    minHeight: 70,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 6,
+    padding: 9,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(21, 87, 56, 0.10)',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
+  },
+  quickIconShell: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderCurve: 'continuous',
-    overflow: 'visible',
-    boxShadow: '0 10px 22px rgba(18, 67, 42, 0.11)',
+    backgroundColor: theme.colors.primary + '12',
   },
-  quickArt: {
-    width: 58,
-    height: 58,
-    marginTop: -8,
-  },
-  quickMiniBadge: {
-    position: 'absolute',
-    right: 6,
-    bottom: 5,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#e8f6ec',
-    borderWidth: 1,
-    borderColor: 'rgba(21, 87, 56, 0.12)',
-  },
-  quickLabel: { fontSize: 10, fontWeight: '800', color: theme.colors.text },
+  quickLabel: { fontSize: 10, lineHeight: 12, fontWeight: '700', color: theme.colors.text },
 });

@@ -142,4 +142,15 @@ describe('mobileApi envelope handling', () => {
       },
     });
   });
+
+  it('deletes a journey activity using the authenticated log endpoint', async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await mobileApi.deleteJourneyLog('farm-1', 'journey-1', 'log-1');
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      '/api/farms/farm-1/journeys/journey-1/logs/log-1',
+      { method: 'DELETE', auth: true },
+    );
+  });
 });

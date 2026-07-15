@@ -1,4 +1,6 @@
 import {
+  KeyboardAvoidingView,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -24,7 +26,7 @@ type ScreenProps = ScrollViewProps & {
 export function Screen({
   children,
   contentContainerStyle,
-  edges = ['bottom'],
+  edges = [],
   scrollEnabled = true,
   onRefresh,
   refreshing = false,
@@ -33,26 +35,34 @@ export function Screen({
 }: ScreenProps) {
   return (
     <SafeAreaView style={[styles.safeArea, safeAreaStyle]} edges={edges}>
-      <ScrollView
-        contentContainerStyle={[styles.content, contentContainerStyle]}
-        keyboardShouldPersistTaps="handled"
-        scrollEnabled={scrollEnabled}
-        showsVerticalScrollIndicator={false}
-        showsHorizontalScrollIndicator={false}
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.colors.primary}
-              colors={[theme.colors.primary]}
-            />
-          ) : undefined
-        }
-        {...props}
+      <KeyboardAvoidingView
+        style={styles.keyboardAware}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {children}
-      </ScrollView>
+        <ScrollView
+          contentContainerStyle={[styles.content, contentContainerStyle]}
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustKeyboardInsets
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={scrollEnabled}
+          showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.colors.primary}
+                colors={[theme.colors.primary]}
+              />
+            ) : undefined
+          }
+          {...props}
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -65,6 +75,9 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  keyboardAware: {
+    flex: 1,
   },
   content: {
     padding: theme.spacing.lg,

@@ -1,5 +1,6 @@
 export type Locale = 'en' | 'sw';
 export type SyncStatus = 'synced' | 'pending' | 'failed' | 'conflict';
+export type SignupRole = 'farmer' | 'agronomist';
 
 export interface SyncFields {
   id: string;
@@ -18,6 +19,7 @@ export interface UserProfile {
   preferred_language: Locale;
   location: string | null;
   created_at: string;
+  role: 'farmer' | 'buyer' | 'supplier' | 'admin' | 'extension_officer' | 'agronomist' | 'partner';
 }
 
 export interface SessionRecord {
@@ -290,6 +292,9 @@ export interface DiagnosisAction {
   efficacy?: number | null;
   cost_tzs_per_ha_min?: number | null;
   cost_tzs_per_ha_max?: number | null;
+  control_type?: string | null;
+  input_class?: string | null;
+  active_ingredients?: string[];
 }
 
 export interface DiagnosisResult {
@@ -308,6 +313,7 @@ export interface DiagnosisResult {
   diagnosed_at: string;
   image_url?: string;
   observation_id?: string | null;
+  review_recommended?: boolean;
 }
 
 export interface MobileBootstrapPayload {
