@@ -62,6 +62,25 @@ function unwrapApiData<T>(
 
 type ApiEnvelope<T> = T | { success?: boolean; data?: T };
 
+type BackendJourneyRecord = Omit<JourneyRecord, 'planting_date'> & {
+  planting_date?: string | null;
+  planted_at?: string | null;
+};
+
+function normalizeJourneyRecord(raw: BackendJourneyRecord): JourneyRecord {
+  return {
+    ...raw,
+    planting_date: raw.planting_date ?? raw.planted_at ?? '',
+  } as JourneyRecord;
+}
+
+function serializeJourneyUpdate(data: Partial<JourneyRecord>) {
+  const { planting_date, ...rest } = data;
+  return planting_date === undefined
+    ? rest
+    : { ...rest, planted_at: planting_date || null };
+}
+
 type BackendWeatherResponse = {
   location?: LiveWeatherResponse['location'];
   farm?: LiveWeatherResponse['farm'];
@@ -268,19 +287,19 @@ export const mobileApi = {
   listFarmJourneys(farmId: string) {
     return withBootstrapFallback(
       () =>
-        apiRequest<ApiEnvelope<JourneyRecord[]>>(`/api/farms/${farmId}/journeys`, {
+        apiRequest<ApiEnvelope<BackendJourneyRecord[]>>(`/api/farms/${farmId}/journeys`, {
           method: 'GET',
           auth: true,
-        }).then((payload) => unwrapApiData<JourneyRecord[]>(payload) ?? []),
+        }).then((payload) => unwrapApiData<BackendJourneyRecord[]>(payload) ?? []),
       (payload) => (payload.journeys ?? []).filter((journey) => String(journey.farm_id) === String(farmId)),
-    );
+    ).then((journeys) => journeys.map((journey) => normalizeJourneyRecord(journey)));
   },
   updateJourney(farmId: string, journeyId: string, data: Partial<JourneyRecord>) {
-    return apiRequest<ApiEnvelope<JourneyRecord>>(`/api/farms/${farmId}/journeys/${journeyId}`, {
+    return apiRequest<ApiEnvelope<BackendJourneyRecord>>(`/api/farms/${farmId}/journeys/${journeyId}`, {
       method: 'PUT',
       auth: true,
-      body: JSON.stringify(data),
-    }).then((payload) => unwrapApiData<JourneyRecord>(payload));
+      body: JSON.stringify(serializeJourneyUpdate(data)),
+    }).then((payload) => normalizeJourneyRecord(unwrapApiData<BackendJourneyRecord>(payload)));
   },
   createJourney(
     farmId: string,
@@ -290,11 +309,11 @@ export const mobileApi = {
       planted_at?: string;
     },
   ) {
-    return apiRequest<ApiEnvelope<JourneyRecord>>(`/api/farms/${farmId}/journeys`, {
+    return apiRequest<ApiEnvelope<BackendJourneyRecord>>(`/api/farms/${farmId}/journeys`, {
       method: 'POST',
       auth: true,
       body: JSON.stringify(data),
-    }).then((payload) => unwrapApiData<JourneyRecord>(payload));
+    }).then((payload) => normalizeJourneyRecord(unwrapApiData<BackendJourneyRecord>(payload)));
   },
   listFarmPlots(farmId: string) {
     return withBootstrapFallback(

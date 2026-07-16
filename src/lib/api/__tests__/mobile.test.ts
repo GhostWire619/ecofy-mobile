@@ -153,4 +153,46 @@ describe('mobileApi envelope handling', () => {
       { method: 'DELETE', auth: true },
     );
   });
+
+  it('normalizes the backend planted_at field when listing journeys', async () => {
+    mockApiRequest.mockResolvedValue([
+      {
+        id: 'journey-1',
+        farm_id: 'farm-1',
+        crop_name: 'Maize',
+        planted_at: '2026-07-10',
+        status: 'active',
+      },
+    ]);
+
+    await expect(mobileApi.listFarmJourneys('farm-1')).resolves.toEqual([
+      expect.objectContaining({
+        id: 'journey-1',
+        planting_date: '2026-07-10',
+      }),
+    ]);
+  });
+
+  it('sends planting-date edits as planted_at and normalizes the response', async () => {
+    mockApiRequest.mockResolvedValue({
+      id: 'journey-1',
+      farm_id: 'farm-1',
+      crop_name: 'Maize',
+      planted_at: '2026-07-12',
+      status: 'active',
+    });
+
+    await expect(
+      mobileApi.updateJourney('farm-1', 'journey-1', { planting_date: '2026-07-12' }),
+    ).resolves.toMatchObject({ planting_date: '2026-07-12' });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      '/api/farms/farm-1/journeys/journey-1',
+      {
+        method: 'PUT',
+        auth: true,
+        body: JSON.stringify({ planted_at: '2026-07-12' }),
+      },
+    );
+  });
 });
