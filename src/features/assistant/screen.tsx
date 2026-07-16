@@ -21,9 +21,10 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ApiError } from '@/lib/api/client';
 import { mobileApi } from '@/lib/api/mobile';
-import { assistantRepository, farmRepository, journeyRepository } from '@/lib/db/repositories';
+import { assistantRepository, journeyRepository } from '@/lib/db/repositories';
 import type { AssistantMessageRecord } from '@/lib/domain/types';
 import { useAuth } from '@/lib/auth/provider';
+import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { theme } from '@/lib/theme';
 import { tapHaptic } from '@/lib/utils/haptics';
 import { compressForUpload, uriToBase64 } from '@/lib/utils/image';
@@ -136,10 +137,12 @@ export function AssistantScreen({ showBack = true }: { showBack?: boolean }) {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  const activeFarmSelection = useActiveFarmSelection();
+  const activeFarmId = activeFarmSelection.data;
   const { data: journey } = useQuery({
-    queryKey: ['assistant-journey'],
+    queryKey: ['assistant-journey', activeFarmId ?? 'default'],
+    enabled: activeFarmId !== undefined,
     queryFn: async () => {
-      const activeFarmId = await farmRepository.getSelectedFarmId();
       return activeFarmId
         ? journeyRepository.getActiveJourneyForFarm(activeFarmId)
         : journeyRepository.getActiveJourney();

@@ -27,6 +27,7 @@ import { decodeInstructions, farmRepository, journeyRepository } from '@/lib/db/
 import type { AchievementBadge, JourneyRecord, LiveWeatherResponse, TaskRecord } from '@/lib/domain/types';
 import { useTaskActions } from '@/lib/hooks/use-task-actions';
 import { useTaskCompletion } from '@/lib/hooks/use-task-completion';
+import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 import {
@@ -279,23 +280,23 @@ export function TodayScreen() {
   const queryClient = useQueryClient();
   const [celebrating, setCelebrating] = useState<AchievementBadge | null>(null);
   const [startJourneyOpen, setStartJourneyOpen] = useState(false);
+  const activeFarmSelection = useActiveFarmSelection();
+  const selectedFarmId = activeFarmSelection.data;
 
-  const { data, refetch, isRefetching, isLoading } = useQuery({
-    queryKey: ['today-screen'],
+  const { data, refetch, isRefetching, isLoading: todayLoading } = useQuery({
+    queryKey: ['today-screen', selectedFarmId ?? 'default'],
+    enabled: selectedFarmId !== undefined,
     queryFn: async () => {
       const onlineFarms = await mobileApi.listFarms().catch(() => []);
 
       // Resolve the active farm. If the farmer hasn't picked one, default to the
       // farm that already has a journey (so Today opens on real work), else the
       // first farm — and persist it so weather + notes stay on the same farm.
-      let activeFarmId = await farmRepository.getSelectedFarmId();
+      let activeFarmId = selectedFarmId;
       if (!activeFarmId) {
         const anyJourney = await journeyRepository.getActiveJourney().catch(() => null);
         activeFarmId =
           anyJourney?.farm_id ?? (onlineFarms[0]?.id ? String(onlineFarms[0].id) : null);
-        if (activeFarmId) {
-          await farmRepository.setSelectedFarmId(activeFarmId).catch(() => undefined);
-        }
       }
 
       const activeFarm = activeFarmId
@@ -337,6 +338,7 @@ export function TodayScreen() {
       return { activeFarm, journey, tasks };
     },
   });
+  const isLoading = activeFarmSelection.isLoading || todayLoading;
 
   const completion = useTaskCompletion({
     farmId: data?.journey?.farm_id ?? null,

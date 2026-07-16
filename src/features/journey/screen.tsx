@@ -14,11 +14,12 @@ import { TaskActionsSheet } from '@/components/tasks/task-actions-sheet';
 import { TaskCompletionSheet } from '@/components/tasks/task-completion-sheet';
 import { EmptyState } from '@/components/state/empty-state';
 import { SkeletonCard } from '@/components/state/skeleton';
-import { decodeInstructions, farmRepository, journeyRepository } from '@/lib/db/repositories';
+import { decodeInstructions, journeyRepository } from '@/lib/db/repositories';
 import type { AchievementBadge } from '@/lib/domain/types';
 import { useTaskActions } from '@/lib/hooks/use-task-actions';
 import { useTaskCompletion } from '@/lib/hooks/use-task-completion';
 import { useEngagement } from '@/lib/hooks/use-engagement';
+import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
@@ -29,11 +30,13 @@ export function JourneyScreen() {
   const { data: engagement } = useEngagement();
   const [celebrating, setCelebrating] = useState<AchievementBadge | null>(null);
   const [activeTab, setActiveTab] = useState<JourneyTab>('tasks');
+  const activeFarmSelection = useActiveFarmSelection();
+  const activeFarmId = activeFarmSelection.data;
 
   const { data, refetch, isRefetching, isLoading } = useQuery({
-    queryKey: ['journey-screen'],
+    queryKey: ['journey-screen', activeFarmId ?? 'default'],
+    enabled: activeFarmId !== undefined,
     queryFn: async () => {
-      const activeFarmId = await farmRepository.getSelectedFarmId();
       const journey = activeFarmId
         ? await journeyRepository.getActiveJourneyForFarm(activeFarmId)
         : await journeyRepository.getActiveJourney();
@@ -57,9 +60,9 @@ export function JourneyScreen() {
   const queryClient = useQueryClient();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const { data: journeys = [] } = useQuery({
-    queryKey: ['journeys-list'],
+    queryKey: ['journeys-list', activeFarmId ?? 'default'],
+    enabled: activeFarmId !== undefined,
     queryFn: async () => {
-      const activeFarmId = await farmRepository.getSelectedFarmId();
       const all = await journeyRepository.listJourneys();
       return activeFarmId ? all.filter((journey) => String(journey.farm_id) === String(activeFarmId)) : all;
     },

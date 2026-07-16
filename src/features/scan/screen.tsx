@@ -12,9 +12,10 @@ import { ApiError } from '@/lib/api/client';
 import { consultsApi, type ExpertConsult } from '@/lib/api/consults';
 import { mobileApi } from '@/lib/api/mobile';
 import { cropCatalog, getCropCatalogItem } from '@/lib/constants/crops';
-import { farmRepository, journeyRepository } from '@/lib/db/repositories';
+import { journeyRepository } from '@/lib/db/repositories';
 import type { DiagnosisResult, LogImageRecord, LogRecord } from '@/lib/domain/types';
 import { useI18n } from '@/lib/i18n';
+import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { theme } from '@/lib/theme';
 import { tapHaptic } from '@/lib/utils/haptics';
 import { createId } from '@/lib/utils/id';
@@ -98,13 +99,16 @@ export function ScanScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [expertConsult, setExpertConsult] = useState<ExpertConsult | null>(null);
   const [consultMessage, setConsultMessage] = useState('Please review this crop scan and advise me on what to do next.');
+  const activeFarmSelection = useActiveFarmSelection();
+  const selectedFarmId = activeFarmSelection.data;
 
   const { data: scanContext } = useQuery({
-    queryKey: ['scan-active-journey'],
+    queryKey: ['scan-active-journey', selectedFarmId ?? 'default'],
+    enabled: selectedFarmId !== undefined,
     // Target the farm the user is actually working on: the selected farm's
     // active journey, falling back to any active journey if none is selected.
     queryFn: async () => {
-      const activeFarmId = await farmRepository.getSelectedFarmId();
+      const activeFarmId = selectedFarmId;
       if (activeFarmId) {
         return {
           farmId: activeFarmId,

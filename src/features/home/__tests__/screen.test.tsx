@@ -250,6 +250,7 @@ describe('HomeScreen', () => {
     await waitFor(() => {
       expect(mockFarmRepository.setSelectedFarmId).toHaveBeenCalledWith('farm-1');
       expect(mockJourneyRepository.setSelectedJourney).toHaveBeenCalledWith('journey-1');
+      expect(client.getQueryData(['active-farm-selection'])).toBe('farm-1');
     });
   });
 });

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -24,8 +24,8 @@ import { Screen } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { financeApi } from '@/lib/api/finance';
 import { mobileApi } from '@/lib/api/mobile';
-import { farmRepository } from '@/lib/db/repositories';
 import type { FarmRecord, JourneyRecord, PlotRecord } from '@/lib/domain/types';
+import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import type { Budget, FarmLoan, FinanceRecord, FinanceType, LoanType } from '@/features/finance/types';
 import { SalesTab } from '@/features/finance/sales-tab';
 import { catLabel, fmtDate, fmtMoney, todayIso } from '@/features/finance/helpers';
@@ -766,24 +766,22 @@ export function FinanceScreen() {
   const { t } = useI18n();
   const [tab, setTab] = useState<FinanceTab>('overview');
   const [switching, setSwitching] = useState(false);
+  const activeFarmSelection = useActiveFarmSelection();
+  const selectedFarmId = activeFarmSelection.data;
 
   const farmsQuery = useQuery({
     queryKey: ['finance-farms'],
-    queryFn: async () => {
-      const farms = await mobileApi.listFarms().catch(() => [] as FarmRecord[]);
-      const selected = await farmRepository.getSelectedFarmId().catch(() => null);
-      return { farms, selected };
-    },
+    queryFn: () => mobileApi.listFarms().catch(() => [] as FarmRecord[]),
   });
   const [overrideFarmId, setOverrideFarmId] = useState<string | null>(null);
+  useEffect(() => setOverrideFarmId(null), [selectedFarmId]);
 
-  const farms = useMemo(() => farmsQuery.data?.farms ?? [], [farmsQuery.data?.farms]);
+  const farms = useMemo(() => farmsQuery.data ?? [], [farmsQuery.data]);
   const activeFarmId = useMemo(() => {
     if (overrideFarmId) return overrideFarmId;
-    const sel = farmsQuery.data?.selected;
-    if (sel && farms.some((f) => String(f.id) === String(sel))) return String(sel);
+    if (selectedFarmId && farms.some((f) => String(f.id) === String(selectedFarmId))) return String(selectedFarmId);
     return farms[0]?.id ? String(farms[0].id) : null;
-  }, [overrideFarmId, farmsQuery.data?.selected, farms]);
+  }, [overrideFarmId, selectedFarmId, farms]);
   const activeFarm = farms.find((f) => String(f.id) === String(activeFarmId)) ?? null;
 
   return (

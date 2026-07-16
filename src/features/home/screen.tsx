@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -19,10 +19,10 @@ import {
 import { Screen } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { mobileApi } from '@/lib/api/mobile';
-import { farmRepository, journeyRepository } from '@/lib/db/repositories';
 import type { FarmHealthSummary, FarmRecord, JourneyRecord, WeatherCacheRecord } from '@/lib/domain/types';
 import { normalizeFarmHealthSummary, normalizeFarmRecord, normalizeJourneyRecord } from '@/features/farms/data';
 import { useI18n } from '@/lib/i18n';
+import { useActiveFarmSelection, useSetActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { theme } from '@/lib/theme';
 
 function Modal({ children, ...props }: ModalProps) {
@@ -291,12 +291,8 @@ export function HomeScreen() {
   const { t } = useI18n();
   const [search, setSearch] = useState('');
   const [menuFarm, setMenuFarm] = useState<FarmRecord | null>(null);
-  const queryClient = useQueryClient();
-
-  const activeFarmQuery = useQuery({
-    queryKey: ['active-farm-selection'],
-    queryFn: () => farmRepository.getSelectedFarmId(),
-  });
+  const activeFarmQuery = useActiveFarmSelection();
+  const setActiveFarm = useSetActiveFarmSelection();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['farms-screen'],
@@ -360,19 +356,7 @@ export function HomeScreen() {
 
   async function handleSetActiveFarm(farmId: string) {
     const farmJourney = journeyForFarm(farmId);
-    await farmRepository.setSelectedFarmId(farmId);
-    await journeyRepository.setSelectedJourney(farmJourney?.id ?? null);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['active-farm-selection'] }),
-      queryClient.invalidateQueries({ queryKey: ['today-screen'] }),
-      queryClient.invalidateQueries({ queryKey: ['journey-screen'] }),
-      queryClient.invalidateQueries({ queryKey: ['journeys-list'] }),
-      queryClient.invalidateQueries({ queryKey: ['logbook-online'] }),
-      queryClient.invalidateQueries({ queryKey: ['my-farm'] }),
-      queryClient.invalidateQueries({ queryKey: ['assistant-journey'] }),
-      queryClient.invalidateQueries({ queryKey: ['scan-active-journey'] }),
-      queryClient.invalidateQueries({ queryKey: ['smart-nudges'] }),
-    ]);
+    await setActiveFarm({ farmId, journeyId: farmJourney?.id ?? null });
   }
 
   const filtered = farms.filter((f) => {

@@ -26,8 +26,8 @@ import { salesApi } from '@/lib/api/finance';
 import { mobileApi } from '@/lib/api/mobile';
 import { equipmentApi, inventoryApi } from '@/lib/api/resources';
 import { workersApi } from '@/lib/api/workers';
-import { farmRepository } from '@/lib/db/repositories';
 import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord, PlotRecord } from '@/lib/domain/types';
+import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { createId } from '@/lib/utils/id';
 import { toAbsoluteUrl } from '@/lib/utils/url';
 import { useI18n } from '@/lib/i18n';
@@ -603,20 +603,20 @@ export function LogbookScreen() {
   const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [filter, setFilter] = useState<LogFilter>('all');
+  const activeFarmSelection = useActiveFarmSelection();
+  const selectedFarmId = activeFarmSelection.data;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['logbook-online'],
+    queryKey: ['logbook-online', selectedFarmId ?? 'default'],
+    enabled: selectedFarmId !== undefined,
     queryFn: async () => {
-      const activeFarmId = await farmRepository.getSelectedFarmId().catch(() => null);
+      const activeFarmId = selectedFarmId ?? null;
       const farms = asArray<FarmRecord>(await mobileApi.listFarms().catch(() => []));
       const activeFarm =
         farms.find((farm) => String(farm.id) === String(activeFarmId)) ??
         farms[0] ??
         null;
       const resolvedFarmId = activeFarm ? String(activeFarm.id) : activeFarmId;
-      if (!activeFarmId && resolvedFarmId) {
-        await farmRepository.setSelectedFarmId(resolvedFarmId).catch(() => undefined);
-      }
 
       const results = await Promise.all(
         (activeFarm ? [activeFarm] : []).map(async (farm) => {

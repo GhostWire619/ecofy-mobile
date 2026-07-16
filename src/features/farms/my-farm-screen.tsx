@@ -6,16 +6,19 @@ import { Screen } from '@/components/layout/screen';
 import { FarmWorkspaceScreen } from '@/features/farms/workspace-screen';
 import { mobileApi } from '@/lib/api/mobile';
 import { farmRepository } from '@/lib/db/repositories';
+import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { useI18n } from '@/lib/i18n';
 import { theme } from '@/lib/theme';
 
 export function MyFarmScreen() {
   const { t } = useI18n();
+  const activeFarmSelection = useActiveFarmSelection();
+  const activeFarmId = activeFarmSelection.data;
   const farmQuery = useQuery({
-    queryKey: ['my-farm'],
+    queryKey: ['my-farm', activeFarmId ?? 'default'],
+    enabled: activeFarmId !== undefined,
     queryFn: async () => {
       const farms = await mobileApi.listFarms().catch(() => farmRepository.listFarms());
-      const activeFarmId = await farmRepository.getSelectedFarmId();
       return (
         farms.find((farm) => String(farm.id) === String(activeFarmId)) ??
         farms[0] ??
