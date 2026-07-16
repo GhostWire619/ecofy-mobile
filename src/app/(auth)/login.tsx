@@ -113,7 +113,7 @@ export default function LoginScreen() {
         <Pressable
           disabled={loading}
           hitSlop={8}
-          onPress={() => router.push('/(auth)/register')}
+          onPress={() => router.replace('/(auth)/register')}
         >
           <Text style={styles.footerLink}>{t('auth.createAccount')}</Text>
         </Pressable>

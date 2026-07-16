@@ -34,14 +34,20 @@ export function AuthShell({
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
       style={styles.root}
     >
       <ScrollView
         contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 16) },
+        ]}
       >
         <View style={[styles.hero, compact && styles.heroCompact]}>
           <Image source={image} style={StyleSheet.absoluteFill} contentFit="cover" />

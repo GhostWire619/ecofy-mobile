@@ -190,7 +190,11 @@ export default function RegisterScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>{t('auth.hasAccount')}</Text>
-        <Pressable disabled={loading} hitSlop={8} onPress={() => router.back()}>
+        <Pressable
+          disabled={loading}
+          hitSlop={8}
+          onPress={() => router.replace('/(auth)/login')}
+        >
           <Text style={styles.footerLink}>{t('auth.signIn')}</Text>
         </Pressable>
       </View>
