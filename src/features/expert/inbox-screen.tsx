@@ -8,6 +8,7 @@ import { Card } from '@/components/core/card';
 import { Screen } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { consultsApi } from '@/lib/api/consults';
+import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/provider';
 import { theme } from '@/lib/theme';
 
@@ -27,6 +28,7 @@ export function ExpertInboxScreen() {
     queryKey: ['expert-consults'],
     queryFn: consultsApi.listExpertConsults,
     enabled: profile.data?.verification_status === 'verified',
+    refetchInterval: 20_000,
   });
   const submit = useMutation({
     mutationFn: async () => {
@@ -45,9 +47,19 @@ export function ExpertInboxScreen() {
   }
 
   if (!profile.data) {
+    const status = profile.error instanceof ApiError ? profile.error.status : null;
+    const message = status === 403
+      ? 'This account is not currently recognized as an agronomist. Sign in with the verified expert account or ask an administrator to enable the agronomist role.'
+      : status === 0 || status === 408
+        ? 'You appear to be offline. Reconnect to load your expert profile and consultations.'
+        : 'Your expert profile could not be refreshed right now.';
     return (
-      <Screen>
-        <Card><Text style={s.error}>Could not load your expert profile.</Text></Card>
+      <Screen contentContainerStyle={s.content}>
+        <Card>
+          <View style={s.inboxFeedbackHead}><Ionicons name="alert-circle-outline" size={22} color={theme.colors.warning} /><Text style={s.sectionTitle}>Expert workspace unavailable</Text></View>
+          <Text style={s.copy}>{message}</Text>
+          <Pressable style={s.primaryButton} onPress={() => void profile.refetch()}><Text style={s.primaryButtonText}>Try again</Text></Pressable>
+        </Card>
       </Screen>
     );
   }
@@ -98,10 +110,17 @@ export function ExpertInboxScreen() {
         <Card style={s.summaryCard}><Text style={s.summaryValue}>{rows.filter((r) => r.priority === 'urgent').length}</Text><Text style={s.copySmall}>Urgent</Text></Card>
       </View>
       <Text style={s.sectionTitle}>Consultation inbox</Text>
-      {consults.isLoading ? <><SkeletonCard /><SkeletonCard /></> : rows.length === 0 ? (
+      <Text style={s.copySmall}>Accept an assigned case, message the farmer, submit your assessment, and optionally propose a follow-up task.</Text>
+      {consults.isLoading ? <><SkeletonCard /><SkeletonCard /></> : consults.isError ? (
+        <Card>
+          <View style={s.inboxFeedbackHead}><Ionicons name="cloud-offline-outline" size={22} color={theme.colors.warning} /><Text style={s.sectionTitle}>Could not refresh cases</Text></View>
+          <Text style={s.copy}>Your expert account is still signed in. Check the connection, then retry to load assigned and queued reviews.</Text>
+          <Pressable style={s.primaryButton} onPress={() => void consults.refetch()}><Text style={s.primaryButtonText}>Try again</Text></Pressable>
+        </Card>
+      ) : rows.length === 0 ? (
         <Card><Text style={s.copy}>No consultations are waiting. Pull down to refresh.</Text></Card>
       ) : rows.map((consult) => (
-        <Link key={consult.id} href={{ pathname: '/(expert)/consults/[consultId]', params: { consultId: consult.id } } as never} asChild>
+        <Link key={consult.id} href={{ pathname: '/(expert)/cases/[consultId]', params: { consultId: consult.id } } as never} asChild>
           <Pressable>
             <Card>
               <View style={s.caseTop}>
@@ -155,4 +174,5 @@ const s = StyleSheet.create({
   input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, paddingHorizontal: 12, paddingVertical: 11, color: theme.colors.text },
   textButton: { alignItems: 'center', padding: 12 },
   textButtonLabel: { color: theme.colors.textMuted, fontWeight: '700' },
+  inboxFeedbackHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

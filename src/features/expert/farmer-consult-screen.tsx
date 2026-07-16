@@ -10,6 +10,7 @@ import { Screen } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { consultsApi } from '@/lib/api/consults';
 import { mobileApi } from '@/lib/api/mobile';
+import { ApiError } from '@/lib/api/client';
 import { useActiveFarmSelection, useSetActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { theme } from '@/lib/theme';
 import { toAbsoluteUrl } from '@/lib/utils/url';
@@ -20,7 +21,15 @@ export function FarmerConsultScreen() {
   const [message, setMessage] = useState('');
   const activeFarm = useActiveFarmSelection();
   const setActiveFarm = useSetActiveFarmSelection();
-  const query = useQuery({ queryKey: ['farmer-consult', consultId], queryFn: () => consultsApi.getFarmerConsult(consultId), enabled: Boolean(consultId), refetchInterval: 15_000 });
+  const cachedConsult = qc.getQueryData<import('@/lib/api/consults').ExpertConsult[]>(['farmer-consults'])
+    ?.find((item) => item.id === consultId);
+  const query = useQuery({
+    queryKey: ['farmer-consult', consultId],
+    queryFn: () => consultsApi.getFarmerConsult(consultId),
+    enabled: Boolean(consultId),
+    initialData: cachedConsult,
+    refetchInterval: 15_000,
+  });
   const farms = useQuery({ queryKey: ['consult-farms'], queryFn: mobileApi.listFarms });
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['farmer-consult', consultId] });
@@ -31,7 +40,25 @@ export function FarmerConsultScreen() {
   const resolve = useMutation({ mutationFn: () => consultsApi.resolve(consultId), onSuccess: refresh });
   if (query.isLoading) return <Screen><SkeletonCard /><SkeletonCard /></Screen>;
   const consult = query.data;
-  if (!consult) return <Screen><Card><Text style={s.error}>Expert review could not be loaded.</Text></Card></Screen>;
+  if (!consult) {
+    const status = query.error instanceof ApiError ? query.error.status : null;
+    const message = status === 404
+      ? 'This review is not available for the account currently signed in.'
+      : status === 0 || status === 408
+        ? 'You appear to be offline. Your review request is safe; reconnect and try again.'
+        : 'We could not refresh this review right now. Your request has not been lost.';
+    return (
+      <Screen contentContainerStyle={s.content}>
+        <Card>
+          <View style={s.feedbackIcon}><Ionicons name="cloud-offline-outline" size={28} color={theme.colors.warning} /></View>
+          <Text style={s.feedbackTitle}>Review status unavailable</Text>
+          <Text style={s.feedbackBody}>{message}</Text>
+          <Pressable style={s.primaryButton} onPress={() => void query.refetch()}><Text style={s.primaryButtonText}>Try again</Text></Pressable>
+          <Pressable style={s.textButton} onPress={() => router.replace('/consults' as never)}><Text style={s.textButtonText}>Back to my reviews</Text></Pressable>
+        </Card>
+      </Screen>
+    );
+  }
   const image = consult.observation?.image_urls?.[0];
   const consultFarmName = farms.data?.find((farm) => String(farm.id) === String(consult.farm_id))?.name ?? 'this farm';
   const consultFarmIsActive = String(activeFarm.data) === String(consult.farm_id);
@@ -43,6 +70,12 @@ export function FarmerConsultScreen() {
   };
   return (
     <Screen onRefresh={query.refetch} refreshing={query.isRefetching} contentContainerStyle={s.content}>
+      {query.isError ? (
+        <View style={s.statusBanner}>
+          <Ionicons name="information-circle-outline" size={19} color={theme.colors.warning} />
+          <Text style={s.statusBannerText}>Showing the latest saved status. Pull down when connected to refresh messages and assessment.</Text>
+        </View>
+      ) : null}
       <View>
         <Text style={s.eyebrow}>{consult.status.replace('_', ' ').toUpperCase()}</Text>
         <Text style={s.title}>{consult.observation?.category?.replaceAll('_', ' ')}</Text>
@@ -103,4 +136,11 @@ const s = StyleSheet.create({
   farmLinkHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   farmNotesButton: { borderWidth: 1, borderColor: theme.colors.primary, borderRadius: theme.radius.md, paddingVertical: 11, paddingHorizontal: 12, alignItems: 'center' },
   farmNotesButtonText: { color: theme.colors.primary, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  feedbackIcon: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', backgroundColor: theme.colors.warning + '18' },
+  feedbackTitle: { color: theme.colors.text, fontSize: 19, fontWeight: '800', textAlign: 'center' },
+  feedbackBody: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  textButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  textButtonText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: '700' },
+  statusBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: theme.radius.md, backgroundColor: theme.colors.warning + '16', borderWidth: 1, borderColor: theme.colors.warning + '35' },
+  statusBannerText: { flex: 1, color: theme.colors.text, fontSize: 12, lineHeight: 18 },
 });

@@ -401,9 +401,14 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
 
   if (mode === 'corners') {
     const ready = points.length >= 3;
+    const progressSlots = Array.from({ length: Math.max(4, points.length + 1) });
     return (
-      <View style={ms.cornerScreen}>
-        <View style={ms.cornerContent}>
+      <ScrollView
+        style={ms.cornerScreen}
+        contentContainerStyle={ms.cornerContent}
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+      >
           <View style={[ms.cornerProgress, ready && ms.cornerProgressReady]}>
             <Ionicons name={ready ? 'checkmark' : 'footsteps-outline'} size={25} color={ready ? '#fff' : theme.colors.primary} />
           </View>
@@ -416,16 +421,16 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
                 : `Corner ${points.length} saved. Walk to the next corner and tap again.`}
           </Text>
 
-          <View style={ms.cornerCountRow}>
-            {[0, 1, 2, 3].map((index) => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ms.cornerCountRow}>
+            {progressSlots.map((_, index) => (
               <View key={index} style={[ms.cornerDot, points[index] && ms.cornerDotDone]}>
                 <Text style={[ms.cornerDotText, points[index] && ms.cornerDotTextDone]}>{index + 1}</Text>
               </View>
             ))}
-          </View>
+          </ScrollView>
 
           {points.length > 0 ? (
-            <View style={ms.savedCorners}>
+            <ScrollView style={ms.savedCorners} nestedScrollEnabled showsVerticalScrollIndicator={points.length > 4}>
               {points.map((point, index) => (
                 <View key={`${point[0]}-${point[1]}-${index}`} style={ms.savedCornerRow}>
                   <Ionicons name="checkmark-circle" size={17} color={theme.colors.success} />
@@ -433,7 +438,7 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
                   <Text style={ms.savedCornerCoords}>{point[1].toFixed(5)}, {point[0].toFixed(5)}</Text>
                 </View>
               ))}
-            </View>
+            </ScrollView>
           ) : null}
 
           {locationError ? <Text style={ms.cornerError}>{locationError}</Text> : null}
@@ -454,8 +459,7 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
           ) : (
             <Text style={ms.cornerHint}>Record at least 3 corners. Four or more gives a better shape.</Text>
           )}
-        </View>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -601,13 +605,13 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
 // ─── Map overlay styles ───────────────────────────────────────────────────────
 
 const ms = StyleSheet.create({
-  cornerScreen: { flex: 1, backgroundColor: '#edf5ee', paddingHorizontal: 22, paddingTop: 72 },
-  cornerContent: { alignItems: 'center', gap: 14 },
+  cornerScreen: { flex: 1, backgroundColor: '#edf5ee' },
+  cornerContent: { alignItems: 'center', gap: 14, paddingHorizontal: 22, paddingTop: 72, paddingBottom: 180 },
   cornerProgress: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: theme.colors.primary + '35' },
   cornerProgressReady: { backgroundColor: theme.colors.success, borderColor: theme.colors.success },
   cornerTitle: { color: theme.colors.text, fontSize: 23, fontWeight: '800', textAlign: 'center' },
   cornerCopy: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 360 },
-  cornerCountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 4 },
+  cornerCountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4, paddingHorizontal: 4 },
   cornerDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: theme.colors.border },
   cornerDotDone: { backgroundColor: theme.colors.success, borderColor: theme.colors.success },
   cornerDotText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: '800' },

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -9,6 +9,7 @@ import { Card } from '@/components/core/card';
 import { Screen } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { consultsApi, type ExpertAssessment } from '@/lib/api/consults';
+import { ApiError } from '@/lib/api/client';
 import { theme } from '@/lib/theme';
 import { toAbsoluteUrl } from '@/lib/utils/url';
 
@@ -22,10 +23,14 @@ const decisions: { value: ExpertAssessment['decision']; label: string }[] = [
 export function ExpertCaseScreen() {
   const { consultId } = useLocalSearchParams<{ consultId: string }>();
   const qc = useQueryClient();
+  const cachedConsult = qc.getQueryData<import('@/lib/api/consults').ExpertConsult[]>(['expert-consults'])
+    ?.find((item) => item.id === consultId);
   const query = useQuery({
     queryKey: ['expert-consult', consultId],
     queryFn: () => consultsApi.getExpertConsult(consultId),
     enabled: Boolean(consultId),
+    initialData: cachedConsult,
+    refetchInterval: 15_000,
   });
   const [message, setMessage] = useState('');
   const [decision, setDecision] = useState<ExpertAssessment['decision']>('confirmed');
@@ -34,7 +39,10 @@ export function ExpertCaseScreen() {
   const [endorses, setEndorses] = useState(true);
   const [proposalTitle, setProposalTitle] = useState('');
   const [proposalInstructions, setProposalInstructions] = useState('');
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['expert-consult', consultId] });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['expert-consult', consultId] });
+    void qc.invalidateQueries({ queryKey: ['expert-consults'] });
+  };
   const accept = useMutation({ mutationFn: () => consultsApi.accept(consultId), onSuccess: refresh });
   const send = useMutation({
     mutationFn: () => consultsApi.sendMessage(consultId, message.trim()),
@@ -59,14 +67,40 @@ export function ExpertCaseScreen() {
 
   if (query.isLoading) return <Screen><SkeletonCard /><SkeletonCard /></Screen>;
   const consult = query.data;
-  if (!consult) return <Screen><Card><Text style={s.error}>Consultation could not be loaded.</Text></Card></Screen>;
+  if (!consult) {
+    const status = query.error instanceof ApiError ? query.error.status : null;
+    const message = status === 403
+      ? 'This case is assigned to another agronomist.'
+      : status === 404
+        ? 'This consultation is no longer available in your expert inbox.'
+        : status === 0 || status === 408
+          ? 'You appear to be offline. Reconnect to load the farmer’s scan and messages.'
+          : 'The case could not be refreshed. Return to the inbox and try again.';
+    return (
+      <Screen contentContainerStyle={s.content}>
+        <Card>
+          <View style={s.feedbackIcon}><Ionicons name="alert-circle-outline" size={28} color={theme.colors.warning} /></View>
+          <Text style={s.feedbackTitle}>Case status unavailable</Text>
+          <Text style={s.feedbackBody}>{message}</Text>
+          <Pressable style={s.primaryButton} onPress={() => void query.refetch()}><Text style={s.primaryButtonText}>Try again</Text></Pressable>
+          <Pressable style={s.textButton} onPress={() => router.replace('/(expert)' as never)}><Text style={s.textButtonText}>Back to consultation inbox</Text></Pressable>
+        </Card>
+      </Screen>
+    );
+  }
   const analysis = consult.observation?.analysis ?? {};
   const image = consult.observation?.image_urls?.[0];
-  const canAccept = consult.status === 'queued' || consult.status === 'assigned';
-  const canWork = ['accepted', 'in_review', 'awaiting_farmer'].includes(consult.status);
+  const canAccept = !query.isError && (consult.status === 'queued' || consult.status === 'assigned');
+  const canWork = !query.isError && ['accepted', 'in_review', 'awaiting_farmer'].includes(consult.status);
 
   return (
     <Screen onRefresh={query.refetch} refreshing={query.isRefetching} contentContainerStyle={s.content}>
+      {query.isError ? (
+        <View style={s.statusBanner}>
+          <Ionicons name="information-circle-outline" size={19} color={theme.colors.warning} />
+          <Text style={s.statusBannerText}>Showing the last saved case status. Reconnect before accepting, messaging, or assessing.</Text>
+        </View>
+      ) : null}
       <View style={s.headingRow}>
         <View style={{ flex: 1 }}>
           <Text style={s.eyebrow}>{consult.priority === 'urgent' ? 'URGENT REVIEW' : 'CROP REVIEW'}</Text>
@@ -178,4 +212,11 @@ const s = StyleSheet.create({
   outlineButtonText: { color: theme.colors.primary, fontWeight: '800' },
   disabled: { opacity: 0.5 },
   error: { color: theme.colors.danger, marginTop: 8 },
+  feedbackIcon: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', backgroundColor: theme.colors.warning + '18' },
+  feedbackTitle: { color: theme.colors.text, fontSize: 19, fontWeight: '800', textAlign: 'center' },
+  feedbackBody: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  textButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  textButtonText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: '700' },
+  statusBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: theme.radius.md, backgroundColor: theme.colors.warning + '16', borderWidth: 1, borderColor: theme.colors.warning + '35' },
+  statusBannerText: { flex: 1, color: theme.colors.text, fontSize: 12, lineHeight: 18 },
 });

@@ -13,7 +13,7 @@ export default function ExpertLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ title: 'Expert consultations', headerLargeTitle: true }} />
-      <Stack.Screen name="consults/[consultId]" options={{ title: 'Review case' }} />
+      <Stack.Screen name="cases/[consultId]" options={{ title: 'Review case' }} />
     </Stack>
   );
 }
