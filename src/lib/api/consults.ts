@@ -103,11 +103,20 @@ type AdvisorProfileUpdate = Pick<AdvisorProfile,
 >;
 
 export const consultsApi = {
-  createFromObservation(observationId: string, requestReason?: string, preferredAdvisorId?: string) {
+  createFromObservation(
+    observationId: string,
+    requestReason?: string,
+    preferredAdvisorId?: string,
+    initialMessage?: string,
+  ) {
     return apiRequest<ExpertConsult>(`/api/observations/${observationId}/consults`, {
       method: 'POST',
       auth: true,
-      body: JSON.stringify({ request_reason: requestReason, preferred_advisor_id: preferredAdvisorId }),
+      body: JSON.stringify({
+        request_reason: requestReason,
+        preferred_advisor_id: preferredAdvisorId,
+        initial_message: initialMessage,
+      }),
     });
   },
   listAdvisors() {

@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { Card } from '@/components/core/card';
 import { Screen, Section } from '@/components/layout/screen';
@@ -97,19 +97,26 @@ export function ScanScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [expertConsult, setExpertConsult] = useState<ExpertConsult | null>(null);
+  const [consultMessage, setConsultMessage] = useState('Please review this crop scan and advise me on what to do next.');
 
-  const { data: journey } = useQuery({
+  const { data: scanContext } = useQuery({
     queryKey: ['scan-active-journey'],
     // Target the farm the user is actually working on: the selected farm's
     // active journey, falling back to any active journey if none is selected.
     queryFn: async () => {
       const activeFarmId = await farmRepository.getSelectedFarmId();
       if (activeFarmId) {
-        return journeyRepository.getActiveJourneyForFarm(activeFarmId);
+        return {
+          farmId: activeFarmId,
+          journey: await journeyRepository.getActiveJourneyForFarm(activeFarmId),
+        };
       }
-      return journeyRepository.getActiveJourney();
+      const fallbackJourney = await journeyRepository.getActiveJourney();
+      return { farmId: fallbackJourney?.farm_id ?? null, journey: fallbackJourney };
     },
   });
+  const journey = scanContext?.journey ?? null;
+  const scanFarmId = scanContext?.farmId ?? journey?.farm_id ?? null;
 
   const journeyCropName = journey ? getCropCatalogItem(journey.crop_id).name : null;
   const effectiveCrop = cropName ?? journeyCropName ?? 'maize';
@@ -124,15 +131,17 @@ export function ScanScreen() {
         uri: input.uri,
         mimeType: input.mimeType,
         cropId: input.cropId,
-        farmId: journey?.farm_id ?? null,
+        farmId: scanFarmId,
         journeyId: journey?.id ?? null,
         plotId: journey?.plot_id ?? null,
       }),
   });
 
   const expertReviewMutation = useMutation({
-    mutationFn: (observationId: string) =>
-      consultsApi.createFromObservation(observationId, 'Please review this crop scan and treatment plan.', preferredAdvisorId),
+    mutationFn: (observationId: string) => {
+      const message = consultMessage.trim() || 'Please review this crop scan and treatment plan.';
+      return consultsApi.createFromObservation(observationId, message, preferredAdvisorId, message);
+    },
     onSuccess: setExpertConsult,
   });
 
@@ -234,6 +243,22 @@ export function ScanScreen() {
         <Text style={styles.subtitle}>{t('scan.subtitle')}</Text>
       </View>
 
+      {preferredAdvisorName ? (
+        <View style={styles.selectedAdvisor}>
+          <View style={styles.selectedAdvisorIcon}>
+            <Ionicons name="person" size={18} color={theme.colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.selectedAdvisorLabel}>Selected agronomist</Text>
+            <Text style={styles.selectedAdvisorName}>{preferredAdvisorName}</Text>
+            <Text style={styles.selectedAdvisorHint}>Take the photo, review the diagnosis, then send the scan with a message.</Text>
+          </View>
+          <TouchableOpacity onPress={() => router.replace('/agronomists' as never)} hitSlop={8}>
+            <Text style={styles.changeAdvisor}>Change</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {/* Crop selector — defaults to your active journey's crop */}
       <View style={styles.cropPickerWrap}>
         <Text style={styles.cropLabel}>{t('scan.crop')}</Text>
@@ -301,7 +326,7 @@ export function ScanScreen() {
 
           {result && <DiagnosisCard result={result} />}
 
-          {result?.detected && result.observation_id ? (
+          {result && (preferredAdvisorId || result.detected) && result.observation_id ? (
             <Card>
               <View style={styles.expertHead}>
                 <View style={styles.expertIcon}>
@@ -309,7 +334,7 @@ export function ScanScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.expertTitle}>{preferredAdvisorName ? `Review with ${preferredAdvisorName}` : 'Get an agronomist’s review'}</Text>
-                  <Text style={styles.expertCopy}>A verified expert can confirm this scan and review the neutral treatment plan.</Text>
+                  <Text style={styles.expertCopy}>The scan image, diagnosis, farm context, and your message will be sent together.</Text>
                 </View>
               </View>
               {expertConsult ? (
@@ -325,15 +350,46 @@ export function ScanScreen() {
                   </TouchableOpacity>
                 </>
               ) : (
-                <TouchableOpacity
-                  style={[styles.expertButton, expertReviewMutation.isPending && { opacity: 0.6 }]}
-                  disabled={expertReviewMutation.isPending}
-                  onPress={() => expertReviewMutation.mutate(result.observation_id!)}
-                >
-                  <Text style={styles.expertButtonText}>{expertReviewMutation.isPending ? 'Requesting…' : 'Request expert review'}</Text>
-                </TouchableOpacity>
+                <>
+                  <Text style={styles.messageLabel}>Message to {preferredAdvisorName ?? 'the agronomist'}</Text>
+                  <TextInput
+                    style={styles.messageInput}
+                    value={consultMessage}
+                    onChangeText={setConsultMessage}
+                    placeholder="What would you like the agronomist to check?"
+                    placeholderTextColor={theme.colors.textMuted}
+                    multiline
+                    maxLength={2000}
+                  />
+                  <TouchableOpacity
+                    style={[styles.expertButton, expertReviewMutation.isPending && { opacity: 0.6 }]}
+                    disabled={expertReviewMutation.isPending}
+                    onPress={() => expertReviewMutation.mutate(result.observation_id!)}
+                  >
+                    <Ionicons name="send" size={16} color="#fff" />
+                    <Text style={styles.expertButtonText}>
+                      {expertReviewMutation.isPending
+                        ? 'Sending…'
+                        : preferredAdvisorName
+                          ? `Send scan to ${preferredAdvisorName}`
+                          : 'Send for expert review'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
               )}
               {expertReviewMutation.error ? <Text style={styles.saveError}>{expertReviewMutation.error.message}</Text> : null}
+            </Card>
+          ) : null}
+
+          {result && preferredAdvisorId && !result.observation_id ? (
+            <Card>
+              <View style={styles.expertHead}>
+                <Ionicons name="alert-circle-outline" size={24} color={theme.colors.warning} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.expertTitle}>This scan cannot be sent yet</Text>
+                  <Text style={styles.expertCopy}>Select an active farm, then scan again so Ecofy can attach the farm context and create the expert review.</Text>
+                </View>
+              </View>
             </Card>
           ) : null}
 
@@ -442,6 +498,19 @@ const styles = StyleSheet.create({
   header: { gap: 4 },
   title: { fontSize: 24, fontWeight: '800', color: theme.colors.text },
   subtitle: { fontSize: 14, color: theme.colors.textMuted, lineHeight: 20 },
+  selectedAdvisor: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 11, padding: 14,
+    borderRadius: theme.radius.lg, borderWidth: 1, borderColor: theme.colors.primary + '40',
+    backgroundColor: theme.colors.primary + '0D',
+  },
+  selectedAdvisorIcon: {
+    width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: theme.colors.primary + '18',
+  },
+  selectedAdvisorLabel: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '700' },
+  selectedAdvisorName: { color: theme.colors.text, fontSize: 16, fontWeight: '800', marginTop: 1 },
+  selectedAdvisorHint: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  changeAdvisor: { color: theme.colors.primary, fontSize: 12, fontWeight: '800', paddingTop: 2 },
 
   cropPickerWrap: { gap: 8 },
   cropLabel: {
@@ -496,7 +565,13 @@ const styles = StyleSheet.create({
   expertIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary + '16' },
   expertTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.text },
   expertCopy: { fontSize: 13, lineHeight: 18, color: theme.colors.textMuted, marginTop: 2 },
-  expertButton: { alignItems: 'center', paddingVertical: 11, borderRadius: theme.radius.md, backgroundColor: theme.colors.primary },
+  messageLabel: { color: theme.colors.text, fontSize: 12, fontWeight: '800', marginTop: 12, marginBottom: 6 },
+  messageInput: {
+    minHeight: 82, borderWidth: 1, borderColor: theme.colors.border,
+    borderRadius: theme.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    color: theme.colors.text, backgroundColor: theme.colors.background, textAlignVertical: 'top',
+  },
+  expertButton: { flexDirection: 'row', justifyContent: 'center', gap: 7, alignItems: 'center', paddingVertical: 12, borderRadius: theme.radius.md, backgroundColor: theme.colors.primary },
   expertButtonText: { color: '#fff', fontSize: 14, fontWeight: '800' },
   reviewRequested: { flexDirection: 'row', alignItems: 'center', gap: 7, padding: 10, borderRadius: theme.radius.md, backgroundColor: theme.colors.success + '12' },
   reviewRequestedText: { flex: 1, color: theme.colors.success, fontSize: 13, fontWeight: '700' },
