@@ -61,6 +61,8 @@
     "pricesDesc": "Market prices and trends",
     "exploreDesc": "Discover crops and guides",
     "scanDesc": "Diagnose a crop with the camera",
+    "expertReviews": "Expert reviews",
+    "expertReviewsDesc": "Read agronomist replies and continue conversations",
     "assistantDesc": "Ask the Ecofy assistant",
     "settingsDesc": "Account, language and legal"
   },
@@ -433,6 +435,10 @@
     "pickEasiest": "Pick the easiest way for you.",
     "methodPointTitle": "I am on my farm now",
     "methodPointDesc": "Stand on your land and tap — we save your spot. No map needed.",
+    "methodCornersTitle": "Record corners with GPS",
+    "methodCornersDesc": "Stand at each corner and tap Record. No map skills needed.",
+    "methodCoordinatesTitle": "Enter coordinates manually",
+    "methodCoordinatesDesc": "Type latitude and longitude if you already have them.",
     "methodWalkTitle": "Walk around the edges",
     "methodWalkDesc": "Walk to each corner and tap. We measure the size for you.",
     "methodDrawTitle": "Draw on the map",
@@ -1190,9 +1196,9 @@
   },
   "mapHelp": {
     "title": "Add your farm in 3 steps",
-    "step1": "Go to your farm — or stand at one corner of it.",
-    "step2": "Tap “My location” to drop a pin, or “Walk” to trace the edges as you walk around.",
-    "step3": "Check the spot on the map, then enter your farm name below and save.",
+    "step1": "Go to your farm and stand at the first corner.",
+    "step2": "Tap “Record this corner”, then walk to the next corner and repeat.",
+    "step3": "After at least 3 corners, continue to the farm details and save.",
     "gotIt": "Got it"
   },
   "location": {

@@ -19,6 +19,7 @@ const LINKS: MoreLink[] = [
   { icon: 'stats-chart-outline', labelKey: 'tabs.prices', descKey: 'more.pricesDesc', route: '/(tabs)/market' },
   { icon: 'compass-outline', labelKey: 'tabs.explore', descKey: 'more.exploreDesc', route: '/(tabs)/explore' },
   { icon: 'scan-outline', labelKey: 'today.scanCrop', descKey: 'more.scanDesc', route: '/scan' },
+  { icon: 'chatbubbles-outline', labelKey: 'more.expertReviews', descKey: 'more.expertReviewsDesc', route: '/consults' },
   { icon: 'settings-outline', labelKey: 'more.settings', descKey: 'more.settingsDesc', route: '/settings' },
 ];
 

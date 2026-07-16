@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -9,6 +9,8 @@ import { Card } from '@/components/core/card';
 import { Screen } from '@/components/layout/screen';
 import { SkeletonCard } from '@/components/state/skeleton';
 import { consultsApi } from '@/lib/api/consults';
+import { mobileApi } from '@/lib/api/mobile';
+import { useActiveFarmSelection, useSetActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { theme } from '@/lib/theme';
 import { toAbsoluteUrl } from '@/lib/utils/url';
 
@@ -16,8 +18,14 @@ export function FarmerConsultScreen() {
   const { consultId } = useLocalSearchParams<{ consultId: string }>();
   const qc = useQueryClient();
   const [message, setMessage] = useState('');
-  const query = useQuery({ queryKey: ['farmer-consult', consultId], queryFn: () => consultsApi.getFarmerConsult(consultId), enabled: Boolean(consultId) });
-  const refresh = () => void qc.invalidateQueries({ queryKey: ['farmer-consult', consultId] });
+  const activeFarm = useActiveFarmSelection();
+  const setActiveFarm = useSetActiveFarmSelection();
+  const query = useQuery({ queryKey: ['farmer-consult', consultId], queryFn: () => consultsApi.getFarmerConsult(consultId), enabled: Boolean(consultId), refetchInterval: 15_000 });
+  const farms = useQuery({ queryKey: ['consult-farms'], queryFn: mobileApi.listFarms });
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['farmer-consult', consultId] });
+    void qc.invalidateQueries({ queryKey: ['farmer-consults'] });
+  };
   const send = useMutation({ mutationFn: () => consultsApi.sendMessage(consultId, message.trim()), onSuccess: () => { setMessage(''); refresh(); } });
   const accept = useMutation({ mutationFn: (proposalId: string) => consultsApi.acceptTaskProposal(consultId, proposalId), onSuccess: refresh });
   const resolve = useMutation({ mutationFn: () => consultsApi.resolve(consultId), onSuccess: refresh });
@@ -25,6 +33,14 @@ export function FarmerConsultScreen() {
   const consult = query.data;
   if (!consult) return <Screen><Card><Text style={s.error}>Expert review could not be loaded.</Text></Card></Screen>;
   const image = consult.observation?.image_urls?.[0];
+  const consultFarmName = farms.data?.find((farm) => String(farm.id) === String(consult.farm_id))?.name ?? 'this farm';
+  const consultFarmIsActive = String(activeFarm.data) === String(consult.farm_id);
+  const openFarmNotes = async () => {
+    if (!consultFarmIsActive) {
+      await setActiveFarm({ farmId: consult.farm_id, journeyId: consult.journey_id ?? null });
+    }
+    router.push('/(tabs)/logbook' as never);
+  };
   return (
     <Screen onRefresh={query.refetch} refreshing={query.isRefetching} contentContainerStyle={s.content}>
       <View>
@@ -32,6 +48,18 @@ export function FarmerConsultScreen() {
         <Text style={s.title}>{consult.observation?.category?.replaceAll('_', ' ')}</Text>
         <Text style={s.muted}>{consult.advisor_name ? `Agronomist: ${consult.advisor_name}` : 'Waiting for a verified agronomist'}</Text>
       </View>
+      <Card>
+        <View style={s.farmLinkHead}>
+          <Ionicons name="leaf-outline" size={21} color={theme.colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.cardTitle}>{consultFarmName}</Text>
+            <Text style={s.muted}>{consultFarmIsActive ? 'This is your active farm.' : 'This scan belongs to a different farm than the one currently active.'}</Text>
+          </View>
+        </View>
+        <Pressable style={s.farmNotesButton} onPress={() => void openFarmNotes()}>
+          <Text style={s.farmNotesButtonText}>{consultFarmIsActive ? 'Open farm Notes' : `Switch to ${consultFarmName} and open Notes`}</Text>
+        </Pressable>
+      </Card>
       {image ? <Image source={{ uri: toAbsoluteUrl(image) }} style={s.image} contentFit="cover" /> : null}
       {consult.assessment ? (
         <Card>
@@ -72,4 +100,7 @@ const s = StyleSheet.create({
   input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius.md, padding: 11, minHeight: 54, color: theme.colors.text, textAlignVertical: 'top' },
   primaryButton: { backgroundColor: theme.colors.primary, borderRadius: theme.radius.md, paddingVertical: 12, alignItems: 'center', marginTop: 6 }, primaryButtonText: { color: '#fff', fontWeight: '800' }, accepted: { color: theme.colors.success, fontWeight: '800' }, error: { color: theme.colors.danger },
   resolveButton: { borderWidth: 1, borderColor: theme.colors.primary, borderRadius: theme.radius.md, paddingVertical: 12, alignItems: 'center' }, resolveButtonText: { color: theme.colors.primary, fontWeight: '800' },
+  farmLinkHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  farmNotesButton: { borderWidth: 1, borderColor: theme.colors.primary, borderRadius: theme.radius.md, paddingVertical: 11, paddingHorizontal: 12, alignItems: 'center' },
+  farmNotesButtonText: { color: theme.colors.primary, fontSize: 13, fontWeight: '800', textAlign: 'center' },
 });

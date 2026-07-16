@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -88,6 +88,7 @@ function saveErrorMessage(error: unknown): string {
 
 export function ScanScreen() {
   const { t } = useI18n();
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ advisorId?: string; advisorName?: string }>();
   const preferredAdvisorId = typeof params.advisorId === 'string' ? params.advisorId : undefined;
   const preferredAdvisorName = typeof params.advisorName === 'string' ? params.advisorName : undefined;
@@ -146,7 +147,13 @@ export function ScanScreen() {
       const message = consultMessage.trim() || 'Please review this crop scan and treatment plan.';
       return consultsApi.createFromObservation(observationId, message, preferredAdvisorId, message);
     },
-    onSuccess: setExpertConsult,
+    onSuccess: (consult) => {
+      setExpertConsult(consult);
+      queryClient.setQueryData<ExpertConsult[]>(['farmer-consults'], (current = []) => [
+        consult,
+        ...current.filter((item) => item.id !== consult.id),
+      ]);
+    },
   });
 
   const pick = async (mode: 'camera' | 'library') => {
@@ -189,7 +196,10 @@ export function ScanScreen() {
     setSaveError(null);
     try {
       const now = new Date().toISOString();
-      const logId = createId();
+      // A diagnosis observation is server-owned and stable. Deriving the log ID
+      // from it makes repeated taps/retries idempotent instead of creating
+      // duplicate scouting notes after a timeout.
+      const logId = result.observation_id ? `scan-${result.observation_id}` : createId();
       const log: LogRecord = {
         id: logId,
         client_mutation_id: createId('mutation'),
@@ -230,6 +240,10 @@ export function ScanScreen() {
       // away (same path as the Add Note sheet), instead of writing to the local
       // DB and queueing a later sync.
       await mobileApi.syncLog({ log, images });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['logbook-online'] }),
+        queryClient.invalidateQueries({ queryKey: ['farm-workspace'] }),
+      ]);
       setSavedToLog(true);
     } catch (err) {
       setSaveError(saveErrorMessage(err));

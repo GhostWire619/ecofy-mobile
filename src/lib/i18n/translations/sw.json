@@ -61,6 +61,8 @@
     "pricesDesc": "Bei za soko na mwenendo",
     "exploreDesc": "Gundua mazao na miongozo",
     "scanDesc": "Tambua zao kwa kamera",
+    "expertReviews": "Mapitio ya mtaalamu",
+    "expertReviewsDesc": "Soma majibu ya mtaalamu wa kilimo na uendelee kuzungumza",
     "assistantDesc": "Uliza msaidizi wa Ecofy",
     "settingsDesc": "Akaunti, lugha na kisheria"
   },
@@ -433,6 +435,10 @@
     "pickEasiest": "Chagua njia rahisi kwako.",
     "methodPointTitle": "Niko shambani sasa",
     "methodPointDesc": "Simama kwenye ardhi yako uguse — tunahifadhi eneo lako. Hakuna ramani inayohitajika.",
+    "methodCornersTitle": "Hifadhi kona kwa GPS",
+    "methodCornersDesc": "Simama kila kona na uguse Hifadhi. Huhitaji kujua kutumia ramani.",
+    "methodCoordinatesTitle": "Weka viwianishi mwenyewe",
+    "methodCoordinatesDesc": "Andika latitudo na longitudo ikiwa tayari unavyo.",
     "methodWalkTitle": "Tembea kuzunguka pembeni",
     "methodWalkDesc": "Tembea hadi kila kona uguse. Tunapima ukubwa kwa ajili yako.",
     "methodDrawTitle": "Chora kwenye ramani",
@@ -1190,9 +1196,9 @@
   },
   "mapHelp": {
     "title": "Ongeza shamba kwa hatua 3",
-    "step1": "Nenda shambani kwako — au simama kwenye kona moja ya shamba.",
-    "step2": "Gusa “Eneo langu” kuweka alama, au “Tembea” kufuatilia mipaka unapotembea.",
-    "step3": "Angalia eneo kwenye ramani, kisha andika jina la shamba hapa chini na uhifadhi.",
+    "step1": "Nenda shambani na usimame kwenye kona ya kwanza.",
+    "step2": "Gusa “Hifadhi kona hii”, kisha tembea hadi kona inayofuata na urudie.",
+    "step3": "Baada ya kona 3 au zaidi, endelea kujaza maelezo ya shamba na uhifadhi.",
     "gotIt": "Nimeelewa"
   },
   "location": {

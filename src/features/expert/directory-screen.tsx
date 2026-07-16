@@ -9,6 +9,10 @@ import { theme } from '@/lib/theme';
 
 export function AdvisorDirectoryScreen() {
   const query = useQuery({ queryKey: ['verified-advisors'], queryFn: () => consultsApi.listAdvisors() });
+  const reviews = useQuery({ queryKey: ['farmer-consults'], queryFn: consultsApi.listFarmerConsults });
+  const waitingForFarmer = (reviews.data ?? []).filter(
+    (consult) => consult.status === 'awaiting_farmer' || Boolean(consult.assessment),
+  ).length;
 
   return (
     <Screen contentContainerStyle={s.content} onRefresh={() => void query.refetch()} refreshing={query.isRefetching}>
@@ -16,6 +20,19 @@ export function AdvisorDirectoryScreen() {
         <Text style={s.title}>Verified agronomists</Text>
         <Text style={s.subtitle}>Choose who should review your next crop scan. Advice remains separate from supplier offers.</Text>
       </View>
+      <TouchableOpacity style={s.reviewsButton} onPress={() => router.push('/consults' as never)}>
+        <View style={s.reviewsIcon}><Ionicons name="chatbubbles-outline" size={21} color={theme.colors.primary} /></View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.reviewsTitle}>My expert reviews</Text>
+          <Text style={s.reviewsCopy}>
+            {waitingForFarmer > 0
+              ? `${waitingForFarmer} review${waitingForFarmer === 1 ? '' : 's'} ready for you`
+              : 'Read replies and continue conversations'}
+          </Text>
+        </View>
+        {waitingForFarmer > 0 ? <View style={s.countBadge}><Text style={s.countText}>{waitingForFarmer}</Text></View> : null}
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+      </TouchableOpacity>
       {query.isLoading ? <ActivityIndicator color={theme.colors.primary} /> : null}
       {query.isError ? <Text style={s.message}>Agronomists could not be loaded. Pull down to retry.</Text> : null}
       {!query.isLoading && !query.data?.length ? (
@@ -80,4 +97,10 @@ const s = StyleSheet.create({
   empty: { alignItems: 'center', gap: 10, padding: 24, borderRadius: 20, backgroundColor: theme.colors.surface },
   emptyTitle: { fontSize: 16, fontWeight: '800', color: theme.colors.text },
   message: { fontSize: 13, lineHeight: 19, color: theme.colors.textMuted, textAlign: 'center' },
+  reviewsButton: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 18, borderWidth: 1, borderColor: theme.colors.primary + '45', backgroundColor: theme.colors.primary + '0c' },
+  reviewsIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary + '15' },
+  reviewsTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '800' },
+  reviewsCopy: { color: theme.colors.textMuted, fontSize: 12, marginTop: 2 },
+  countBadge: { minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.danger },
+  countText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });

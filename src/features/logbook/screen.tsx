@@ -623,29 +623,46 @@ export function LogbookScreen() {
           const journeys = asArray<JourneyRecord>(
             await mobileApi.listFarmJourneys(String(farm.id)).catch(() => []),
           );
-          const activeJourney =
-            journeys.find((j) => j.status === 'active') ?? journeys[0] ?? null;
-          if (!activeJourney) {
+          const currentJourneys = journeys.filter(
+            (journey) => journey.status === 'active' || journey.status === 'planned',
+          );
+          const primaryJourney =
+            currentJourneys.find((journey) => journey.status === 'active') ??
+            currentJourneys[0] ??
+            journeys[0] ??
+            null;
+          if (!primaryJourney) {
             return { farm, journey: null as JourneyRecord | null, logs: [] as LogRecord[] };
           }
-          const logs = asArray<LogWithImages>(
-            await mobileApi
-              .listJourneyLogs(String(farm.id), String(activeJourney.id))
-              .catch(() => []),
-          );
+          // A scan can be attached to a planned journey while another journey is
+          // still marked active. Load every current journey so a successfully
+          // saved scan cannot disappear merely because of journey ordering.
+          // Notes is the farm's history, not only the current season. Scans can
+          // remain attached to a journey that was later completed or replaced,
+          // so load every journey belonging to the selected farm.
+          const journeysToLoad = journeys;
+          const logs = (
+            await Promise.all(
+              journeysToLoad.map((journey) =>
+                mobileApi
+                  .listJourneyLogs(String(farm.id), String(journey.id))
+                  .catch(() => [] as LogWithImages[]),
+              ),
+            )
+          ).flat() as LogWithImages[];
           const legacyDemoLogs = logs.filter(isLegacyDemoLog);
           if (legacyDemoLogs.length > 0) {
             await Promise.allSettled(
               legacyDemoLogs.map((log) =>
                 mobileApi.deleteJourneyLog(
                   String(farm.id),
-                  String(activeJourney.id),
+                  String(log.journey_id ?? primaryJourney.id),
                   String(log.id),
                 ),
               ),
             );
           }
-          return { farm, journey: activeJourney, logs: logs.filter((log) => !isLegacyDemoLog(log)) };
+          return { farm, journey: primaryJourney, logs: logs.filter((log) => !isLegacyDemoLog(log)) };
         }),
       );
 

@@ -65,7 +65,7 @@ const defaultSelection: FarmBoundarySelection = {
   region: 'Dodoma',
   district: '',
   formattedAddress: '',
-  mappingMode: 'polygon',
+  mappingMode: 'corners',
   mappedAreaHectares: null,
   fieldBoundaryJson: null,
 };
@@ -144,7 +144,7 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
   }));
 
   // Mapping
-  const [mappingMode, setMappingMode] = useState<MappingMode>('polygon');
+  const [mappingMode, setMappingMode] = useState<MappingMode>('corners');
   const [pickerHandle, setPickerHandle] = useState<FarmBoundaryPickerHandle | null>(null);
 
   // Auto-open sheet when switching to coords mode so user can fill the form
@@ -190,14 +190,14 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
   // Switching to a GPS mode collapses the sheet so the map's capture button shows.
   function chooseMethod(next: MappingMode) {
     setMappingMode(next);
-    if (next === 'point' || next === 'walk') {
+    if (next === 'corners' || next === 'polygon') {
       translateY.value = withTiming(COLLAPSED_Y, { duration: 280, easing: EASE });
     }
   }
 
   const METHODS: { key: MappingMode; emoji: string; title: string; desc: string }[] = [
-    { key: 'point', emoji: '📍', title: t('setup.methodPointTitle'), desc: t('setup.methodPointDesc') },
-    { key: 'walk', emoji: '🚶', title: t('setup.methodWalkTitle'), desc: t('setup.methodWalkDesc') },
+    { key: 'corners', emoji: '📍', title: t('setup.methodCornersTitle'), desc: t('setup.methodCornersDesc') },
+    { key: 'coordinates', emoji: '🔢', title: t('setup.methodCoordinatesTitle'), desc: t('setup.methodCoordinatesDesc') },
     { key: 'polygon', emoji: '🗺️', title: t('setup.methodDrawTitle'), desc: t('setup.methodDrawDesc') },
   ];
 
@@ -211,7 +211,7 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
     setError(null);
     try {
       const existingFarms = await mobileApi.listFarms().catch(() => farmRepository.listFarms());
-      if (existingFarms.length > 0) {
+      if (mode === 'onboarding' && existingFarms.length > 0) {
         await refreshBootstrap().catch(() => undefined);
         await markOnboardingComplete();
         router.replace('/(tabs)/home' as never);
@@ -283,6 +283,9 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
         mode={mappingMode}
         onModeChange={setMappingMode}
         onHandle={setPickerHandle}
+        onCornersDone={() => {
+          translateY.value = withTiming(0, { duration: 280, easing: EASE });
+        }}
         bottomInset={PEEK_H + 8}
       />
 

@@ -27,7 +27,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type MappingMode = 'polygon' | 'walk' | 'coordinates' | 'point';
+export type MappingMode = 'corners' | 'polygon' | 'walk' | 'coordinates' | 'point';
 
 export type FarmBoundarySelection = {
   latitude: number;
@@ -111,6 +111,8 @@ type Props = {
   onModeChange: (m: MappingMode) => void;
   /** receives coord-panel state so parent can render it in bottom sheet */
   onHandle?: (h: FarmBoundaryPickerHandle) => void;
+  /** expands the farm-details sheet after a novice finishes GPS corner capture */
+  onCornersDone?: () => void;
   /** bottom offset so floating controls don't overlap the bottom sheet */
   bottomInset?: number;
 };
@@ -128,7 +130,7 @@ function MapBtn({ label, active, onPress, disabled }: { label: string; active?: 
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHandle, bottomInset = 88 }: Props) {
+export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHandle, onCornersDone, bottomInset = 88 }: Props) {
   const { t } = useI18n();
   const [points, setPoints] = useState<BoundaryPoint[]>(
     () => parseBoundaryPoints(value?.fieldBoundaryJson ?? null),
@@ -201,20 +203,33 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
   // ── Geocode ──
   const scheduleGeocode = useCallback((lng: number, lat: number, nextPts: BoundaryPoint[], nextMode: MappingMode) => {
     if (geoTimer.current) clearTimeout(geoTimer.current);
+    const isBoundary = nextMode === 'polygon' || nextMode === 'corners' || nextMode === 'walk';
+    const area = isBoundary && nextPts.length >= 3
+      ? Number(calculatePolygonAreaHectares(nextPts).toFixed(2)) : null;
+    const baseSelection: FarmBoundarySelection = {
+      latitude: lat,
+      longitude: lng,
+      country: value?.country ?? '',
+      region: value?.region ?? '',
+      district: value?.district ?? '',
+      formattedAddress: value?.formattedAddress ?? '',
+      mappingMode: nextMode,
+      mappedAreaHectares: area,
+      fieldBoundaryJson: isBoundary && nextPts.length >= 3 ? buildBoundaryJson(nextPts) : null,
+    };
+    // Persist the measured coordinates immediately. Reverse geocoding is only
+    // enrichment and must never make a GPS boundary disappear when offline.
+    onChange(baseSelection);
     geoTimer.current = setTimeout(async () => {
       setIsResolving(true);
       try {
         const geo = await reverseGeocode(lng, lat);
-        const area = nextMode === 'polygon' && nextPts.length >= 3
-          ? Number(calculatePolygonAreaHectares(nextPts).toFixed(2)) : null;
         onChange({
-          latitude: lat, longitude: lng,
-          country: geo.country ?? value?.country ?? '',
-          region: geo.region ?? value?.region ?? '',
-          district: geo.district ?? value?.district ?? '',
-          formattedAddress: geo.formattedAddress ?? value?.formattedAddress ?? '',
-          mappingMode: nextMode, mappedAreaHectares: area,
-          fieldBoundaryJson: nextMode === 'polygon' ? buildBoundaryJson(nextPts) : null,
+          ...baseSelection,
+          country: geo.country ?? baseSelection.country,
+          region: geo.region ?? baseSelection.region,
+          district: geo.district ?? baseSelection.district,
+          formattedAddress: geo.formattedAddress ?? baseSelection.formattedAddress,
         });
       } catch { /* keep existing */ }
       finally { setIsResolving(false); }
@@ -264,7 +279,7 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
       const next = prev.slice(0, -1);
       if (next.length > 0) {
         const c = getPolygonCentroid(next) ?? { latitude: next[0][1], longitude: next[0][0] };
-        scheduleGeocode(c.longitude, c.latitude, next, 'polygon');
+        scheduleGeocode(c.longitude, c.latitude, next, mode === 'corners' ? 'corners' : 'polygon');
       }
       return next;
     });
@@ -307,7 +322,13 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
       setCameraCenter(pt); setZoomLevel(17);
       cameraRef.current?.setCamera({ centerCoordinate: pt, zoomLevel: 17, animationDuration: 600 });
       if (mode === 'point') { setCenterPin(pt); setPoints([]); scheduleGeocode(pt[0], pt[1], [], 'point'); }
-      else { setPoints((prev) => { const next = [...prev, pt]; scheduleGeocode(pt[0], pt[1], next, 'polygon'); return next; }); }
+      else {
+        setPoints((prev) => {
+          const next = [...prev, pt];
+          scheduleGeocode(pt[0], pt[1], next, mode === 'corners' ? 'corners' : 'polygon');
+          return next;
+        });
+      }
     } catch { setLocationError('Could not get location.'); }
   }
 
@@ -377,6 +398,66 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
   const PointAnnotation = Mapbox?.PointAnnotation;
 
   const hasAny = points.length > 0 || centerPin !== null;
+
+  if (mode === 'corners') {
+    const ready = points.length >= 3;
+    return (
+      <View style={ms.cornerScreen}>
+        <View style={ms.cornerContent}>
+          <View style={[ms.cornerProgress, ready && ms.cornerProgressReady]}>
+            <Ionicons name={ready ? 'checkmark' : 'footsteps-outline'} size={25} color={ready ? '#fff' : theme.colors.primary} />
+          </View>
+          <Text style={ms.cornerTitle}>{ready ? 'Farm boundary recorded' : 'Record each farm corner'}</Text>
+          <Text style={ms.cornerCopy}>
+            {points.length === 0
+              ? 'Stand at the first corner of your farm, then tap the button below.'
+              : ready
+                ? 'You can record another corner for a more accurate boundary, or continue to the farm details.'
+                : `Corner ${points.length} saved. Walk to the next corner and tap again.`}
+          </Text>
+
+          <View style={ms.cornerCountRow}>
+            {[0, 1, 2, 3].map((index) => (
+              <View key={index} style={[ms.cornerDot, points[index] && ms.cornerDotDone]}>
+                <Text style={[ms.cornerDotText, points[index] && ms.cornerDotTextDone]}>{index + 1}</Text>
+              </View>
+            ))}
+          </View>
+
+          {points.length > 0 ? (
+            <View style={ms.savedCorners}>
+              {points.map((point, index) => (
+                <View key={`${point[0]}-${point[1]}-${index}`} style={ms.savedCornerRow}>
+                  <Ionicons name="checkmark-circle" size={17} color={theme.colors.success} />
+                  <Text style={ms.savedCornerText}>Corner {index + 1}</Text>
+                  <Text style={ms.savedCornerCoords}>{point[1].toFixed(5)}, {point[0].toFixed(5)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {locationError ? <Text style={ms.cornerError}>{locationError}</Text> : null}
+          <TouchableOpacity style={ms.recordCornerButton} onPress={() => void captureCurrentLocation()} activeOpacity={0.85}>
+            <Ionicons name="locate" size={20} color="#fff" />
+            <Text style={ms.recordCornerButtonText}>{points.length === 0 ? 'Record first corner' : 'Record this corner'}</Text>
+          </TouchableOpacity>
+          {points.length > 0 ? (
+            <TouchableOpacity style={ms.undoCornerButton} onPress={undoPoint}>
+              <Text style={ms.undoCornerButtonText}>Undo last corner</Text>
+            </TouchableOpacity>
+          ) : null}
+          {ready ? (
+            <TouchableOpacity style={ms.finishCornersButton} onPress={onCornersDone}>
+              <Text style={ms.finishCornersButtonText}>Done — continue farm details</Text>
+              <Ionicons name="arrow-forward" size={18} color={theme.colors.primary} />
+            </TouchableOpacity>
+          ) : (
+            <Text style={ms.cornerHint}>Record at least 3 corners. Four or more gives a better shape.</Text>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   if (!MapView) {
     return (
@@ -520,6 +601,29 @@ export function FarmBoundaryPicker({ value, onChange, mode, onModeChange, onHand
 // ─── Map overlay styles ───────────────────────────────────────────────────────
 
 const ms = StyleSheet.create({
+  cornerScreen: { flex: 1, backgroundColor: '#edf5ee', paddingHorizontal: 22, paddingTop: 72 },
+  cornerContent: { alignItems: 'center', gap: 14 },
+  cornerProgress: { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: theme.colors.primary + '35' },
+  cornerProgressReady: { backgroundColor: theme.colors.success, borderColor: theme.colors.success },
+  cornerTitle: { color: theme.colors.text, fontSize: 23, fontWeight: '800', textAlign: 'center' },
+  cornerCopy: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, textAlign: 'center', maxWidth: 360 },
+  cornerCountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 4 },
+  cornerDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: theme.colors.border },
+  cornerDotDone: { backgroundColor: theme.colors.success, borderColor: theme.colors.success },
+  cornerDotText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: '800' },
+  cornerDotTextDone: { color: '#fff' },
+  savedCorners: { alignSelf: 'stretch', maxHeight: 190, borderRadius: 16, backgroundColor: '#fff', paddingHorizontal: 13, paddingVertical: 5 },
+  savedCornerRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
+  savedCornerText: { color: theme.colors.text, fontSize: 13, fontWeight: '700' },
+  savedCornerCoords: { flex: 1, color: theme.colors.textMuted, fontSize: 11, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  cornerError: { color: theme.colors.danger, fontSize: 12, textAlign: 'center' },
+  recordCornerButton: { alignSelf: 'stretch', minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, backgroundColor: theme.colors.primary },
+  recordCornerButtonText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  undoCornerButton: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 14 },
+  undoCornerButtonText: { color: theme.colors.textMuted, fontSize: 13, fontWeight: '700' },
+  finishCornersButton: { alignSelf: 'stretch', minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.primary, backgroundColor: '#fff' },
+  finishCornersButtonText: { color: theme.colors.primary, fontSize: 14, fontWeight: '800' },
+  cornerHint: { color: theme.colors.textMuted, fontSize: 12, textAlign: 'center' },
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1a2e1a', gap: 8, padding: 24 },
   fallbackTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
   fallbackCopy: { color: 'rgba(255,255,255,0.6)', fontSize: 13, textAlign: 'center' },

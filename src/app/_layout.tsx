@@ -156,6 +156,7 @@ function NavigationGate() {
       <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="(expert)" options={{ headerShown: false }} />
+      <Stack.Screen name="consults/index" options={{ title: 'My expert reviews' }} />
       <Stack.Screen name="consults/[consultId]" options={{ title: 'Expert review' }} />
       <Stack.Screen
         name="assistant"
