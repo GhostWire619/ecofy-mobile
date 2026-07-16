@@ -26,6 +26,7 @@ import { salesApi } from '@/lib/api/finance';
 import { mobileApi } from '@/lib/api/mobile';
 import { equipmentApi, inventoryApi } from '@/lib/api/resources';
 import { workersApi } from '@/lib/api/workers';
+import { journeyRepository, logRepository } from '@/lib/db/repositories';
 import type { FarmRecord, JourneyRecord, LogImageRecord, LogRecord, PlotRecord } from '@/lib/domain/types';
 import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
 import { createId } from '@/lib/utils/id';
@@ -626,11 +627,23 @@ export function LogbookScreen() {
           const currentJourneys = journeys.filter(
             (journey) => journey.status === 'active' || journey.status === 'planned',
           );
-          const primaryJourney =
+          let primaryJourney =
             currentJourneys.find((journey) => journey.status === 'active') ??
             currentJourneys[0] ??
             journeys[0] ??
             null;
+          // The journey may have just been created locally (add-farm/start-journey)
+          // and not yet synced to the server — fall back to the local DB so the farm
+          // is loggable immediately instead of saying "start a crop journey".
+          if (!primaryJourney) {
+            const localJourney = await journeyRepository
+              .getActiveJourneyForFarm(String(farm.id))
+              .catch(() => null);
+            if (localJourney) {
+              primaryJourney = localJourney;
+              journeys.push(localJourney);
+            }
+          }
           if (!primaryJourney) {
             return { farm, journey: null as JourneyRecord | null, logs: [] as LogRecord[] };
           }
@@ -662,7 +675,19 @@ export function LogbookScreen() {
               ),
             );
           }
-          return { farm, journey: primaryJourney, logs: logs.filter((log) => !isLegacyDemoLog(log)) };
+          // Merge locally-stored logs (scans/notes created on-device that may not
+          // have synced to the server yet) so they show in Notes right away.
+          const localLogs = asArray<LogRecord>(
+            await logRepository.listLogsForFarm(String(farm.id), 100).catch(() => []),
+          );
+          const seen = new Set(logs.map((log) => String(log.id)));
+          const mergedLogs: LogWithImages[] = [
+            ...logs,
+            ...localLogs
+              .filter((log) => !seen.has(String(log.id)))
+              .map((log) => log as LogWithImages),
+          ];
+          return { farm, journey: primaryJourney, logs: mergedLogs.filter((log) => !isLegacyDemoLog(log)) };
         }),
       );
 

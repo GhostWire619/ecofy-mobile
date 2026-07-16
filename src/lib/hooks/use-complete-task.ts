@@ -66,9 +66,11 @@ export function useCompleteTask(opts?: { onAchievement?: (badge: AchievementBadg
         completed_at: new Date().toISOString(),
       });
 
-      // Attach a logbook record when there's real proof (photo or note).
+      // Record every completion in the logbook so accomplished tasks show up in
+      // Notes — with the farmer's photo/note when they added one, otherwise a
+      // simple "did <task>" entry.
       let logId: string | null = null;
-      if ((photoUri || note) && farmId) {
+      if (farmId) {
         try {
           const { log } = await logRepository.createOfflineLog({
             farm_id: farmId,
@@ -76,7 +78,7 @@ export function useCompleteTask(opts?: { onAchievement?: (badge: AchievementBadg
             journey_id: journeyId ?? task.journey_id ?? null,
             operation_type: task.task_type ?? 'other',
             date: new Date().toISOString().slice(0, 10),
-            notes: note ?? null,
+            notes: note ?? task.title ?? null,
             images: photoUri
               ? [{ local_uri: photoUri, mime_type: mimeType ?? 'image/jpeg' }]
               : [],

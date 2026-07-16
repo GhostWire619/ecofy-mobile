@@ -463,7 +463,7 @@ export function TodayScreen() {
           <Text style={styles.sectionTitle}>{t('today.doThisToday')}</Text>
           {isLoading ? (
             <SkeletonCard />
-          ) : journey && plantingDateMissing ? (
+          ) : journey && plantingDateMissing && !hero ? (
             <Card>
             <Text style={styles.heroTitle}>{t('today.setPlantingTitle')}</Text>
             <Text style={styles.heroSub}>

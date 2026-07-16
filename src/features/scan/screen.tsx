@@ -12,7 +12,9 @@ import { ApiError } from '@/lib/api/client';
 import { consultsApi, type ExpertConsult } from '@/lib/api/consults';
 import { mobileApi } from '@/lib/api/mobile';
 import { cropCatalog, getCropCatalogItem } from '@/lib/constants/crops';
-import { journeyRepository } from '@/lib/db/repositories';
+import { bootstrapCurrentUser } from '@/lib/bootstrap/bootstrap';
+import { journeyRepository, logRepository } from '@/lib/db/repositories';
+import { flushSyncQueueIfOnline } from '@/lib/sync/engine';
 import type { DiagnosisResult, LogImageRecord, LogRecord } from '@/lib/domain/types';
 import { useI18n } from '@/lib/i18n';
 import { useActiveFarmSelection } from '@/lib/hooks/use-active-farm';
@@ -140,6 +142,19 @@ export function ScanScreen() {
         journeyId: journey?.id ?? null,
         plotId: journey?.plot_id ?? null,
       }),
+    onSuccess: async () => {
+      // A detection on a tracked journey makes the server engine inject treatment
+      // + re-scout tasks. Pull the updated plan so those tasks show on Today and
+      // Journey right away instead of only after the next app open.
+      await flushSyncQueueIfOnline().catch(() => undefined);
+      await bootstrapCurrentUser().catch(() => undefined);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['today-screen'] }),
+        queryClient.invalidateQueries({ queryKey: ['journey-screen'] }),
+        queryClient.invalidateQueries({ queryKey: ['smart-nudges'] }),
+        queryClient.invalidateQueries({ queryKey: ['farm-workspace'] }),
+      ]);
+    },
   });
 
   const expertReviewMutation = useMutation({
@@ -236,9 +251,10 @@ export function ScanScreen() {
           taken_at: now,
         },
       ];
-      // Online-first: upload the photo + persist the log to the server straight
-      // away (same path as the Add Note sheet), instead of writing to the local
-      // DB and queueing a later sync.
+      // Save to the local DB first so the scan shows in Notes immediately (and
+      // survives even if the server sync fails, e.g. the journey hasn't synced
+      // yet), then push it to the server.
+      await logRepository.saveLog(log, images).catch(() => undefined);
       await mobileApi.syncLog({ log, images });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['logbook-online'] }),

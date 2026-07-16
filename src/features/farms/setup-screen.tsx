@@ -29,7 +29,7 @@ import { cropCatalog } from '@/lib/constants/crops';
 import { farmRepository, journeyRepository, prefsRepository } from '@/lib/db/repositories';
 import type { CropCatalogItem } from '@/lib/domain/types';
 import { useI18n } from '@/lib/i18n';
-import { queueFarmSync, queueJourneySync } from '@/lib/sync/engine';
+import { flushSyncQueueIfOnline, queueFarmSync, queueJourneySync } from '@/lib/sync/engine';
 import { theme } from '@/lib/theme';
 
 function normalizeCrop(raw: Record<string, unknown>): CropCatalogItem {
@@ -244,6 +244,10 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
 
       await queueFarmSync(farm, plot);
 
+      // Make the just-created farm the active one so Today/Notes/Finance all open
+      // on it immediately (otherwise nothing knows which farm to show).
+      await farmRepository.setSelectedFarmId(String(farm.id)).catch(() => undefined);
+
       if (form.cropId) {
         const offsetDays = PLANTING_OFFSET_DAYS[plantingChoice];
         const plantingDate = new Date();
@@ -254,8 +258,17 @@ export function FarmSetupScreen({ mode }: { mode: FarmSetupMode }) {
           crop_id: form.cropId,
           planting_date: plantingDate.toISOString().slice(0, 10),
         });
+        // Pin it as the selected journey so the journey/today screens light up on
+        // the crop the farmer just started, even before the sync round-trips.
+        await journeyRepository.setSelectedJourney(String(draft.journey.id)).catch(() => undefined);
         await queueJourneySync(draft.journey);
       }
+
+      // Online-first: push the farm + journey to the server now (don't wait for a
+      // background flush), then pull the server's compiled plan back so the engine
+      // tasks + planting date show immediately instead of only the local draft.
+      await flushSyncQueueIfOnline().catch(() => undefined);
+      await refreshBootstrap().catch(() => undefined);
 
       await queryClient.invalidateQueries();
 

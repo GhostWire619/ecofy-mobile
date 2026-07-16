@@ -883,6 +883,15 @@ export const logRepository = {
 
     return { log, images };
   },
+  /** Upsert a log (and its images) into the local DB — used so a scan/note shows
+   * in Notes immediately, even before it syncs to the server. */
+  async saveLog(log: LogRecord, images: LogImageRecord[] = []) {
+    await withTransaction(async (db) => {
+      await upsertMany(db, 'logs', [log]);
+      if (images.length) await upsertMany(db, 'log_images', images);
+    });
+    return { log, images };
+  },
   /** Soft-delete a log and its images (used to roll back a task-completion proof on undo). */
   async softDeleteLog(logId: string) {
     const timestamp = nowIso();
